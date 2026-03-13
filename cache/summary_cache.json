@@ -1,0 +1,42 @@
+{
+  "1": {
+    "driver": "Martin One",
+    "summary": "Martin One shows no recorded collision, fatigue, distraction, or phone-use events, indicating generally safe driving behaviour. The only notable risk is 7 seatbelt violations, which should be addressed urgently as a consistent compliance and personal safety concern.",
+    "generated_at": "2026-03-13"
+  },
+  "2": {
+    "driver": "Akeem Two",
+    "summary": "Akeem Two shows a very strong safety profile, with no recorded collision, fatigue, distraction, or phone-use events. The only notable concern is 7 seatbelt violations, which should be addressed promptly as a consistent compliance risk.",
+    "generated_at": "2026-03-13"
+  },
+  "3": {
+    "driver": "Richard Three",
+    "summary": "Richard Three shows an excellent safety profile, with no recorded collision, fatigue, distraction, or phone-use events. The only concern is a seatbelt compliance issue, which should be addressed promptly to reduce preventable injury risk.",
+    "generated_at": "2026-03-13"
+  },
+  "4": {
+    "driver": "Mark Four",
+    "summary": "Mark Four shows very low overall risk, with no recorded collision, fatigue, or distraction events. The main concerns are repeated seatbelt non-compliance (4) and one phone-use incident, which should be addressed to prevent avoidable safety breaches.",
+    "generated_at": "2026-03-13"
+  },
+  "5": {
+    "driver": "Lee Five",
+    "summary": "Lee Five shows an excellent safety profile, with no recorded collision, fatigue, distraction, or phone-use events. The only concern is a seatbelt compliance issue, which should be addressed promptly to prevent avoidable injury risk.",
+    "generated_at": "2026-03-13"
+  },
+  "6": {
+    "driver": "Emma Six",
+    "summary": "Emma Six shows an excellent safety profile, with no recorded incidents for collision risk, fatigue, distraction, or unsafe in-cab behaviours. The only issue is a seatbelt compliance event, which should be addressed promptly as it remains a critical preventable safety risk.",
+    "generated_at": "2026-03-13"
+  },
+  "7": {
+    "driver": "Carl Seven",
+    "summary": "Carl Seven shows no recorded collision, fatigue, or compliance-related events, indicating generally strong safety performance. The only notable concern is distraction, with 8 events, which should be monitored and addressed to reduce attention-related risk.",
+    "generated_at": "2026-03-13"
+  },
+  "8": {
+    "driver": "Sahil Eight",
+    "summary": "Sahil Eight shows a generally low-risk profile, with no recorded collision, fatigue, distraction, or following-distance events. The main concerns are seatbelt non-compliance (4) and some phone use (2), with one smoking event, indicating a need to reinforce basic in-cab safety habits.",
+    "generated_at": "2026-03-13"
+  }
+}

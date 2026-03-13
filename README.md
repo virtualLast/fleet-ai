@@ -31,11 +31,16 @@ Fleet AI is a Python-based utility designed for fleet managers to automatically 
 ### Installation
 
 1. Clone the repository to your local machine.
-2. Install the required dependencies:
+2. Create and activate a virtual environment:
    ```bash
-   pip install openai
+   python3 -m venv venv
+   source venv/bin/activate
    ```
-3. Set your OpenAI API key as an environment variable:
+3. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Set your OpenAI API key as an environment variable:
    ```bash
    export OPENAI_API_KEY='your-api-key-here'
    ```

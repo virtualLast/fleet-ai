@@ -41,7 +41,7 @@ def get_driver_summary(cache, driver:DriverMetrics):
         return summary
 
     # AI generation
-    summary = generate_summary(driver.model_dump())
+    summary = generate_summary(driver)
 
     store_summary(
         cache,

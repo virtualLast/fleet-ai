@@ -1,4 +1,3 @@
-from models.driver_metrics import DriverMetrics
 from models.driver_summary import DriverSummary
 from util.data_loader import load_events
 from services.driver_metrics import extract_driver_metrics
@@ -18,7 +17,7 @@ def generate_summaries(events_file):
     events = load_events(events_file)
 
     driver_metrics = [
-        DriverMetrics(**extract_driver_metrics(driver))
+        extract_driver_metrics(driver)
         for driver in events
     ]
 
@@ -66,8 +65,7 @@ def generate_single_summary(events_file, journey_id):
 
         if event["id"] == journey_id:
 
-            driver_data = extract_driver_metrics(event)
-            driver = DriverMetrics(**driver_data)
+            driver = extract_driver_metrics(event)
 
             summary = get_driver_summary(cache, driver)
 

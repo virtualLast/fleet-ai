@@ -3,28 +3,6 @@ import json
 
 client = OpenAI()
 
-def has_events(driver):
-    """
-    Checks if a driver has any events.
-
-    Args:
-        driver (dict): A dictionary containing raw driver events.
-
-    Returns:
-        bool: True if the driver has any events, False otherwise.
-    """
-    return any([
-        driver["forward_collision"],
-        driver["following_distance"],
-        driver["pedestrian_collision"],
-        driver["fatigue"],
-        driver["distraction"],
-        driver["phone_use"],
-        driver["yawning"],
-        driver["smoking"],
-        driver["seatbelt"]
-    ])
-
 # -----------------------------
 # Function: generate_summary
 # -----------------------------
@@ -52,16 +30,13 @@ Focus on notable risks or behaviours.
 """
 
     # Call the OpenAI API to get a text response
-    if has_events(driver):
-        try: # try to generate a summary, if it fails, return an error message
-            response = client.responses.create(
-                model="gpt-5.4",  # The AI model used to generate the summary
-                input=prompt,
-                temperature=0.2 # lower temperature means more focused and deterministic output
-            )
-            return response.output_text
-        except Exception as e:
-            print(f"Error generating summary for driver {driver['name']}: {e}")
-            return "Error generating summary."
-    else:
-        return "No events found for this driver."
+    try:  # try to generate a summary, if it fails, return an error message
+        response = client.responses.create(
+            model="gpt-5.4",  # The AI model used to generate the summary
+            input=prompt,
+            temperature=0.2  # lower temperature means more focused and deterministic output
+        )
+        return response.output_text
+    except Exception as e:
+        print(f"Error generating summary for driver {driver['name']}: {e}")
+        return "Error generating summary."

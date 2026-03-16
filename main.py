@@ -7,7 +7,7 @@ def main():
 
     summaries = generate_summaries("events.json")
 
-    print(json.dumps(summaries, indent=2))
+    print(json.dumps([s.model_dump() for s in summaries], indent=2))
 
 
 if __name__ == "__main__":

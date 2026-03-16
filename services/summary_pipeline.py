@@ -1,7 +1,10 @@
+from models.driver_metrics import DriverMetrics
+from models.driver_summary import DriverSummary
 from util.data_loader import load_events
 from services.driver_metrics import extract_driver_metrics
 from services.summary_service import get_driver_summary
 from cache.cache_worker import load_cache, save_cache
+from fastapi import HTTPException
 
 
 def generate_summaries(events_file):
@@ -15,7 +18,7 @@ def generate_summaries(events_file):
     events = load_events(events_file)
 
     driver_metrics = [
-        extract_driver_metrics(driver)
+        DriverMetrics(**extract_driver_metrics(driver))
         for driver in events
     ]
 
@@ -27,11 +30,11 @@ def generate_summaries(events_file):
 
         summary = get_driver_summary(cache, driver)
 
-        summaries.append({
-            "journey_id": driver["id"],
-            "driver": driver["name"],
-            "summary": summary
-        })
+        summaries.append(DriverSummary(
+            journey_id=driver.id,
+            driver=driver.name,
+            summary=summary
+        ))
 
     save_cache(cache)
 
@@ -63,16 +66,17 @@ def generate_single_summary(events_file, journey_id):
 
         if event["id"] == journey_id:
 
-            driver = extract_driver_metrics(event)
+            driver_data = extract_driver_metrics(event)
+            driver = DriverMetrics(**driver_data)
 
             summary = get_driver_summary(cache, driver)
 
             save_cache(cache)
 
-            return {
-                "journey_id": journey_id,
-                "driver": driver["name"],
-                "summary": summary
-            }
+            return DriverSummary(
+                journey_id=driver.id,
+                driver=driver.name,
+                summary=summary
+            )
 
-    return {"error": "Journey not found"}
+    raise HTTPException(status_code=404, detail="Journey not found")

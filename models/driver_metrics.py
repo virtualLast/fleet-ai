@@ -3,6 +3,7 @@ from pydantic import BaseModel
 class DriverMetrics(BaseModel):
     id: int
     name: str
+    depot: str
 
     forward_collision: int
     following_distance: int

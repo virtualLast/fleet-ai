@@ -1,9 +1,10 @@
+from models.driver_metrics import DriverMetrics
 from services.ai_summary import generate_summary
 from cache.cache_worker import get_cached_summary, store_summary
 
 
-def has_events(driver):
-    return any(driver[event] for event in [
+def has_events(driver: DriverMetrics):
+    return any(getattr(driver, event) for event in [
         "forward_collision",
         "following_distance",
         "pedestrian_collision",
@@ -16,9 +17,9 @@ def has_events(driver):
     ])
 
 
-def get_driver_summary(cache, driver):
+def get_driver_summary(cache, driver:DriverMetrics):
 
-    journey_id = driver["id"]
+    journey_id = driver.id
 
     # Cache check
     summary = get_cached_summary(cache, journey_id)
@@ -33,19 +34,19 @@ def get_driver_summary(cache, driver):
         store_summary(
             cache,
             journey_id,
-            driver["name"],
+            driver.name,
             summary
         )
 
         return summary
 
     # AI generation
-    summary = generate_summary(driver)
+    summary = generate_summary(driver.model_dump())
 
     store_summary(
         cache,
         journey_id,
-        driver["name"],
+        driver.name,
         summary
     )
 

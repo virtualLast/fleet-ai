@@ -5,6 +5,12 @@ from cache.cache_worker import load_cache, save_cache
 
 
 def generate_summaries(events_file):
+    """
+    Generate summaries for drivers based on events data.
+
+    :param events_file: Path to the events JSON file.
+    :return: List of driver summaries.
+    """
 
     events = load_events(events_file)
 
@@ -30,3 +36,43 @@ def generate_summaries(events_file):
     save_cache(cache)
 
     return summaries
+
+def generate_single_summary(events_file, journey_id):
+    """
+    Generate a summary for a single journey based on the provided events file and journey ID.
+
+    This function processes events data to extract and compute a summary for a specific driver
+    and journey identified by the given journey ID. It interacts with cached records to generate
+    the driver summary and updates the cache with the results.
+
+    :param events_file: Path to the file containing event data. The data is expected to be in a
+                        format that `load_events` can process.
+    :type events_file: str
+    :param journey_id: Unique identifier of the journey for which the summary is generated.
+    :type journey_id: int
+    :return: If successful, returns a dictionary containing the journey ID, driver's name, and
+             the generated summary. If the journey ID is not found, returns an error dictionary
+             indicating that the journey was not found.
+    :rtype: dict
+    """
+
+    events = load_events(events_file)
+    cache = load_cache()
+
+    for event in events:
+
+        if event["id"] == journey_id:
+
+            driver = extract_driver_metrics(event)
+
+            summary = get_driver_summary(cache, driver)
+
+            save_cache(cache)
+
+            return {
+                "journey_id": journey_id,
+                "driver": driver["name"],
+                "summary": summary
+            }
+
+    return {"error": "Journey not found"}

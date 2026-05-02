@@ -1,0 +1,6 @@
+documentation/implementation/*
+!documentation/implementation/.gitkeep
+documentation/research/*
+!documentation/research/.gitkeep
+documentation/todo/*
+!documentation/todo/.gitkeep

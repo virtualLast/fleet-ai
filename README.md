@@ -58,3 +58,27 @@ Fleet AI is a Python-based utility designed for fleet managers to automatically 
 ## Configuration
 
 The AI model and parameters (like temperature) can be configured in `services/ai_summary.py`. Currently, it is set to use a GPT model to generate focused, two-sentence safety insights.
+
+## Run the API with Docker
+
+1. Ensure Docker external networks exist (only needed once on your machine):
+   ```bash
+   docker network create lightfoot || true
+   docker network create caddy_web || true
+   ```
+2. Set your OpenAI key in the shell:
+   ```bash
+   export OPENAI_API_KEY='your-api-key-here'
+   ```
+3. Start the API container:
+   ```bash
+   docker compose up --build -d
+   ```
+4. Validate direct local access:
+   ```bash
+   curl http://localhost:8000/ai/driver-summaries
+   ```
+5. If your Caddy setup is connected to `caddy_web`, validate proxied domain access:
+   ```bash
+   curl http://fleet-ai.app.local/ai/driver-summaries
+   ```

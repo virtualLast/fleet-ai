@@ -190,7 +190,7 @@ The agent must:
 After applying fixes, the agent must re-run:
 
 ```bash
-cr --plain --base development-branch > review_actions.txt
+cr --plain --base dev > review_actions.txt
 ```
 
 **Iteration Rule:**

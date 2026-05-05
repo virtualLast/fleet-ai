@@ -3,7 +3,10 @@ import json
 from datetime import date
 from pathlib import Path
 
+# Per-journey summary cache (single driver summary responses).
 CACHE_FILE = Path("cache/summary_cache.json")
+
+# Collection summary cache (POST collection scope responses).
 EVENT_COLLECTION_CACHE_FILE = Path("cache/event-collection-summary.json")
 
 
@@ -48,6 +51,7 @@ def save_event_collection_cache(cache: Dict[str, Any]):
 def get_cached_summary(cache: Dict[str, Any], journey_id: int) -> Optional[str]:
     """Return a cached summary if available."""
 
+    # JSON object keys are strings, so normalize integer ids before lookup.
     s_journey_id = str(journey_id)
 
     if s_journey_id in cache:
@@ -59,6 +63,7 @@ def get_cached_summary(cache: Dict[str, Any], journey_id: int) -> Optional[str]:
 def store_summary(cache: Dict[str, Any], journey_id: int, driver_name: str, summary: str):
     """Store a new summary in the cache."""
 
+    # Keep cache key format aligned with `get_cached_summary` lookups.
     s_journey_id = str(journey_id)
 
     cache[s_journey_id] = {
@@ -69,7 +74,7 @@ def store_summary(cache: Dict[str, Any], journey_id: int, driver_name: str, summ
 
 
 def get_cached_event_collection_summary(cache: Dict[str, Any], collection_scope: str) -> Optional[Dict[str, Any]]:
-    """Return a cached collection summary if available."""
+    """Return a cached collection summary for the provided scope key."""
 
     return cache.get(collection_scope)
 
@@ -80,7 +85,7 @@ def store_event_collection_summary(
     driver_ids: List[int],
     summary: str,
 ):
-    """Store a collection summary in the cache."""
+    """Store a collection summary in cache, including generation metadata."""
 
     cache[collection_scope] = {
         "collection_scope": collection_scope,

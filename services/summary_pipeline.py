@@ -1,3 +1,5 @@
+"""Pipeline orchestration for CLI and API summary generation flows."""
+
 from models.driver_summary import DriverSummary, DriverCollectionSummary
 from util.data_loader import load_events
 from services.driver_metrics import extract_driver_metrics
@@ -49,6 +51,14 @@ def generate_summaries(events_file):
 
 
 def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
+    """Normalize raw collection rows into prompt-ready dictionaries.
+
+    Key behavior:
+    - Coerce numeric fields to integers with safe fallbacks.
+    - Produce stable unique `driver_id` values even with missing/duplicate ids.
+    - Keep `fleet_name`/`driver_name` labels for AI summary context.
+    """
+
     def _safe_int(value, fallback=0):
         try:
             return int(value)
@@ -96,6 +106,8 @@ def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
 
 
 def generate_event_collection_summary(collection_scope: str, data: list[dict]) -> DriverCollectionSummary:
+    """Return one collection summary using scope-keyed cache and AI on misses."""
+
     normalized_data = _normalize_collection_data(data)
     driver_ids = [row["driver_id"] for row in normalized_data]
     cache = load_event_collection_cache()

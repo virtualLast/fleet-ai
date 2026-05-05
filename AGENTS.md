@@ -234,6 +234,29 @@ Provide a clear summary including:
 
 ---
 
+## 7. Documentation Requirement for New Code (Mandatory)
+
+Whenever an agent adds or changes implementation code, documentation must be
+updated in the same task.
+
+**Requirements:**
+- Add or update inline documentation for modified logic:
+  - Function/method docstrings for public behavior
+  - Class/module docstrings where needed for context
+  - Concise inline comments for non-obvious logic
+- Keep documentation accurate and behavior-aligned:
+  - Comments must describe current behavior (not intended/future behavior)
+  - Outdated comments must be corrected or removed
+- Update user-facing docs when behavior/contracts change:
+  - `README.md` for setup, run flow, API routes/payloads, or config changes
+  - Include runnable examples where practical
+
+**Validation Rule:**
+- A task is not complete until both code and related documentation changes are
+  present and reviewed.
+
+---
+
 ## Global Stop Condition
 
 At any point, the agent must halt and request clarification if:

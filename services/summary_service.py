@@ -1,9 +1,13 @@
+"""Driver-level summary orchestration with cache-first behavior."""
+
 from models.driver_metrics import DriverMetrics
 from services.ai_summary import generate_summary
 from cache.cache_worker import get_cached_summary, store_summary
 
 
 def has_events(driver: DriverMetrics):
+    """Return `True` when at least one tracked safety counter is non-zero."""
+
     return any(getattr(driver, event) for event in [
         "forward_collision",
         "following_distance",
@@ -18,6 +22,13 @@ def has_events(driver: DriverMetrics):
 
 
 def get_driver_summary(cache, driver:DriverMetrics):
+    """Return a journey summary using cache-first and zero-event shortcuts.
+
+    Flow:
+    1. Return cached summary when available.
+    2. For zero-event journeys, return deterministic fallback text (no AI call).
+    3. Otherwise generate summary via AI and persist to cache.
+    """
 
     journey_id = driver.id
 

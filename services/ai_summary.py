@@ -1,3 +1,5 @@
+"""AI summary generation helpers for driver and collection safety insights."""
+
 from models.driver_metrics import DriverMetrics
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -61,6 +63,8 @@ Focus on notable risks or behaviours.
 
 
 def _is_zero_event_collection(collection_data: list[dict]) -> bool:
+    """Return `True` when all tracked collection counters are zero/non-numeric."""
+
     for row in collection_data:
         for field in TRACKED_EVENT_FIELDS:
             value = row.get(field, 0)
@@ -75,6 +79,8 @@ def _is_zero_event_collection(collection_data: list[dict]) -> bool:
 
 
 def _build_zero_event_collection_summary(collection_data: list[dict]) -> str:
+    """Build a deterministic low-risk summary for all-zero event collections."""
+
     unique_fleets = {
         row.get("fleetLevelName", "unknown")
         for row in collection_data
@@ -88,6 +94,12 @@ def _build_zero_event_collection_summary(collection_data: list[dict]) -> str:
 
 
 def generate_collection_summary(collection_data: list[dict]) -> str:
+    """Generate one plain-text summary for a normalized collection dataset.
+
+    The function avoids an OpenAI call when all tracked counters are zero and
+    returns deterministic fallbacks for empty input or API failures.
+    """
+
     if not collection_data:
         return "No driver event data is available for this collection scope."
 

@@ -1,6 +1,9 @@
 from models.driver_metrics import DriverMetrics
 from openai import OpenAI
+from dotenv import load_dotenv
 import json
+
+load_dotenv()
 
 client = OpenAI()
 TRACKED_EVENT_FIELDS = [

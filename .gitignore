@@ -4,3 +4,4 @@ documentation/research/*
 !documentation/research/.gitkeep
 documentation/todo/*
 !documentation/todo/.gitkeep
+.env

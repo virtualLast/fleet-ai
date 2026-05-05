@@ -40,7 +40,11 @@ Fleet AI is a Python-based utility designed for fleet managers to automatically 
    ```bash
    pip install -r requirements.txt
    ```
-4. Set your OpenAI API key as an environment variable:
+4. Create a `.env` file in the project root and set your OpenAI API key:
+   ```bash
+   OPENAI_API_KEY='your-api-key-here'
+   ```
+   If you prefer, you can still export it in your shell instead:
    ```bash
    export OPENAI_API_KEY='your-api-key-here'
    ```
@@ -66,7 +70,7 @@ The AI model and parameters (like temperature) can be configured in `services/ai
    docker network create lightfoot || true
    docker network create caddy_web || true
    ```
-2. Set your OpenAI key in the shell:
+2. Ensure `OPENAI_API_KEY` is available (either in `.env` or exported in your shell):
    ```bash
    export OPENAI_API_KEY='your-api-key-here'
    ```

@@ -15,7 +15,7 @@ If you are new to Python, this README is designed to explain **what each part do
 
 ## How the project works (high-level flow)
 
-### Single journey flow (`GET /ai/driver-summary/{id}` or CLI loop)
+### Single journey flow (`POST /ai/driver-summary/{id}` or CLI loop)
 
 1. Load source data from `events.json`.
 2. Convert raw row fields into a `DriverMetrics` model.
@@ -158,14 +158,14 @@ Example response shape:
 }
 ```
 
-### `GET /ai/driver-summary/{id}`
+### `POST /ai/driver-summary/{id}`
 
 Generate one summary for a single journey id.
 
 Example request:
 
 ```bash
-curl http://localhost:8000/ai/driver-summary/77
+curl -X POST http://localhost:8000/ai/driver-summary/77
 ```
 
 ## Caching behavior
@@ -211,7 +211,7 @@ Run a specific suite:
 4. Validate local endpoint:
 
    ```bash
-   curl http://localhost:8000/ai/driver-summary/1
+   curl -X POST http://localhost:8000/ai/driver-summary/1
    ```
 
 ## Troubleshooting
@@ -221,5 +221,5 @@ Run a specific suite:
   - Confirm network access to OpenAI APIs.
 - `422 Unprocessable Entity` on `POST /ai/driver-summary`:
   - Verify payload keys and data types match the request model.
-- `404 Journey not found` on `GET /ai/driver-summary/{id}`:
+- `404 Journey not found` on `POST /ai/driver-summary/{id}`:
   - Confirm the ID exists in `events.json`.

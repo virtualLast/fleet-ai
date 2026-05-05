@@ -65,7 +65,7 @@ def test_post_driver_summary_validates_payload():
     assert response.status_code == 422
 
 
-def test_get_driver_summary_route_returns_single_summary(monkeypatch):
+def test_post_driver_summary_by_id_route_returns_single_summary(monkeypatch):
     client = TestClient(app)
     captured = {}
 
@@ -80,7 +80,7 @@ def test_get_driver_summary_route_returns_single_summary(monkeypatch):
 
     monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
 
-    response = client.get("/ai/driver-summary/77")
+    response = client.post("/ai/driver-summary/77")
 
     assert response.status_code == 200
     assert response.json() == {

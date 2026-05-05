@@ -35,7 +35,7 @@ def summarize_collection(payload: DriverCollectionSummaryRequest):
     return generate_event_collection_summary(payload.collection_scope, collection_data)
 
 
-@app.get("/ai/driver-summary/{id}", response_model=DriverSummary)
+@app.post("/ai/driver-summary/{id}", response_model=DriverSummary)
 def summarize_journey(id: int):
     """Generate a summary for a single journey id using file-backed events data."""
 

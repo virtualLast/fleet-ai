@@ -1,9 +1,10 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import json
 from datetime import date
 from pathlib import Path
 
 CACHE_FILE = Path("cache/summary_cache.json")
+EVENT_COLLECTION_CACHE_FILE = Path("cache/event-collection-summary.json")
 
 
 def load_cache() -> Dict[str, Any]:
@@ -25,6 +26,25 @@ def save_cache(cache: Dict[str, Any]):
         json.dump(cache, f, indent=2)
 
 
+def load_event_collection_cache() -> Dict[str, Any]:
+    """Load event collection summary cache from the disk if it exists."""
+
+    if EVENT_COLLECTION_CACHE_FILE.exists():
+        with open(EVENT_COLLECTION_CACHE_FILE, "r") as f:
+            return json.load(f)
+
+    return {}
+
+
+def save_event_collection_cache(cache: Dict[str, Any]):
+    """Persist event collection summary cache dictionary to disk."""
+
+    EVENT_COLLECTION_CACHE_FILE.parent.mkdir(exist_ok=True)
+
+    with open(EVENT_COLLECTION_CACHE_FILE, "w") as f:
+        json.dump(cache, f, indent=2)
+
+
 def get_cached_summary(cache: Dict[str, Any], journey_id: int) -> Optional[str]:
     """Return a cached summary if available."""
 
@@ -43,6 +63,28 @@ def store_summary(cache: Dict[str, Any], journey_id: int, driver_name: str, summ
 
     cache[s_journey_id] = {
         "driver": driver_name,
+        "summary": summary,
+        "generated_at": str(date.today())
+    }
+
+
+def get_cached_event_collection_summary(cache: Dict[str, Any], collection_scope: str) -> Optional[Dict[str, Any]]:
+    """Return a cached collection summary if available."""
+
+    return cache.get(collection_scope)
+
+
+def store_event_collection_summary(
+    cache: Dict[str, Any],
+    collection_scope: str,
+    driver_ids: List[int],
+    summary: str,
+):
+    """Store a collection summary in the cache."""
+
+    cache[collection_scope] = {
+        "collection_scope": collection_scope,
+        "driver_ids": driver_ids,
         "summary": summary,
         "generated_at": str(date.today())
     }

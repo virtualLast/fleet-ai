@@ -3,6 +3,20 @@ from openai import OpenAI
 import json
 
 client = OpenAI()
+TRACKED_EVENT_FIELDS = [
+    "adasFcwCount",
+    "adasHmwCount",
+    "adasPcwCount",
+    "adasEventsCount",
+    "dsmFatigueCount",
+    "dsmNoDriverCount",
+    "dsmHandheldDevicesCount",
+    "dsmSmokingCount",
+    "dsmDistractionCount",
+    "dsmYawningCount",
+    "dsmSeatbeltCount",
+    "dsmEventsCount",
+]
 
 # -----------------------------
 # Function: generate_summary
@@ -41,3 +55,65 @@ Focus on notable risks or behaviours.
     except Exception as e:
         print(f"Error generating summary for driver {driver.name}: {e}")
         return "Error generating summary."
+
+
+def _is_zero_event_collection(collection_data: list[dict]) -> bool:
+    for row in collection_data:
+        for field in TRACKED_EVENT_FIELDS:
+            value = row.get(field, 0)
+
+            try:
+                if int(value or 0) > 0:
+                    return False
+            except (ValueError, TypeError):
+                continue
+
+    return True
+
+
+def _build_zero_event_collection_summary(collection_data: list[dict]) -> str:
+    unique_fleets = {
+        row.get("fleetLevelName", "unknown")
+        for row in collection_data
+    }
+
+    return (
+        f"This collection covers {len(collection_data)} drivers across {len(unique_fleets)} fleet groups. "
+        "No tracked ADAS or DSM safety events were recorded, indicating a low-risk profile for the selected dataset. "
+        "Continue routine monitoring to maintain this performance."
+    )
+
+
+def generate_collection_summary(collection_data: list[dict]) -> str:
+    if not collection_data:
+        return "No driver event data is available for this collection scope."
+
+    if _is_zero_event_collection(collection_data):
+        return _build_zero_event_collection_summary(collection_data)
+
+    prompt = f"""
+You are a fleet safety analyst.
+
+Analyse the following collection of driver safety records and write a concise safety summary.
+
+Collection Data:
+{json.dumps(collection_data, indent=2)}
+
+Rules:
+- Output plain text only.
+- Write 2 to 4 sentences, maximum 100 words.
+- Mention the top one or two risk patterns and one positive observation.
+- If multiple fleet groups are present, explicitly note cross-fleet differences.
+- Do not invent metrics or events.
+"""
+
+    try:
+        response = client.responses.create(
+            model="gpt-5.4",
+            input=prompt,
+            temperature=0.1
+        )
+        return response.output_text
+    except Exception as e:
+        print(f"Error generating collection summary: {e}")
+        return "Error generating collection summary."

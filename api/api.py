@@ -1,8 +1,7 @@
-from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from services.summary_pipeline import generate_summaries, generate_single_summary
-from models.driver_summary import DriverSummary
+from services.summary_pipeline import generate_single_summary, generate_event_collection_summary
+from models.driver_summary import DriverSummary, DriverCollectionSummaryRequest, DriverCollectionSummary
 
 app = FastAPI()
 
@@ -18,10 +17,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/ai/driver-summaries", response_model=List[DriverSummary])
-def summarize():
-    return generate_summaries('events.json')
+@app.post("/ai/driver-summary", response_model=DriverCollectionSummary)
+def summarize_collection(payload: DriverCollectionSummaryRequest):
+    collection_data = [driver.model_dump() for driver in payload.data]
 
-@app.get("/ai/driver-summaries/{id}", response_model=DriverSummary)
+    return generate_event_collection_summary(payload.collection_scope, collection_data)
+
+@app.get("/ai/driver-summary/{id}", response_model=DriverSummary)
 def summarize_journey(id: int):
     return generate_single_summary('events.json', id)

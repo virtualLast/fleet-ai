@@ -1,0 +1,20 @@
+{
+  "fleet=Iceland;period=test": {
+    "collection_scope": "fleet=Iceland;period=test",
+    "driver_ids": [
+      4861
+    ],
+    "summary": "This collection covers 1 drivers across 1 fleet groups. No tracked ADAS or DSM safety events were recorded, indicating a low-risk profile for the selected dataset. Continue routine monitoring to maintain this performance.",
+    "generated_at": "2026-05-05"
+  },
+  "fleet=Iceland;period=final-smoke": {
+    "collection_scope": "fleet=Iceland;period=final-smoke",
+    "driver_ids": [
+      0,
+      1,
+      2
+    ],
+    "summary": "This collection covers 3 drivers across 1 fleet groups. No tracked ADAS or DSM safety events were recorded, indicating a low-risk profile for the selected dataset. Continue routine monitoring to maintain this performance.",
+    "generated_at": "2026-05-05"
+  }
+}

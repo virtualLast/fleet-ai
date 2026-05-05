@@ -12,6 +12,8 @@ services:
       caddy_web:
         aliases:
           - api
+    volumes:
+      - ./cache:/app/cache
 
 networks:
   lightfoot:

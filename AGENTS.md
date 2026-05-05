@@ -152,7 +152,7 @@ Perform an automated code review using CodeRabbit CLI, resolve issues, and produ
 The agent must run:
 
 ```bash
-cr --plain --base development-branch > review_actions.txt
+cr --plain --base dev > review_actions.txt
 ```
 
 **Requirements:**

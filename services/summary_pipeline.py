@@ -123,7 +123,66 @@ def generate_event_collection_summary(collection_scope: str, data: list[dict]) -
 
     return DriverCollectionSummary(**cache[collection_scope])
 
-def generate_single_summary(events_file, journey_id):
+
+def _get_matching_fallback_row(journey_id: int, data: list[dict]) -> dict | None:
+    """Return the payload row that matches journey id by `id` or `fleetLevelId`."""
+
+    for row in data:
+        raw_row_id = row.get("id")
+
+        if raw_row_id is None:
+            raw_row_id = row.get("fleetLevelId")
+
+        try:
+            row_id = int(raw_row_id)
+        except (TypeError, ValueError):
+            continue
+
+        if row_id == journey_id:
+            return row
+
+    return None
+
+
+def _validate_fallback_payload(fallback_payload: dict | None) -> tuple[str, list[dict]]:
+    """Validate secondary endpoint fallback context and return scope + payload rows."""
+
+    if fallback_payload is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required fallback payload: collection_scope and data",
+        )
+
+    collection_scope = fallback_payload.get("collection_scope")
+
+    if not isinstance(collection_scope, str) or not collection_scope.strip():
+        raise HTTPException(status_code=400, detail="Missing required field: collection_scope")
+
+    data = fallback_payload.get("data")
+
+    if not isinstance(data, list) or not data:
+        raise HTTPException(status_code=400, detail="Missing required field: data")
+
+    return collection_scope.strip(), data
+
+
+def _extract_fallback_driver_metrics(journey_id: int, row: dict):
+    """Validate minimum fallback row fields and convert to driver metrics."""
+
+    required_fields = ("fleetLevelName", "entityName")
+    missing_fields = [field for field in required_fields if not row.get(field)]
+
+    if missing_fields:
+        missing_labels = ", ".join(missing_fields)
+        raise HTTPException(status_code=400, detail=f"Missing required data fields: {missing_labels}")
+
+    enriched_row = dict(row)
+    enriched_row["id"] = journey_id
+
+    return extract_driver_metrics(enriched_row)
+
+
+def generate_single_summary(events_file, journey_id, fallback_payload: dict | None = None):
     """
     Generate a summary for a single journey based on the provided events file and journey ID.
 
@@ -136,6 +195,9 @@ def generate_single_summary(events_file, journey_id):
     :type events_file: str
     :param journey_id: Unique identifier of the journey for which the summary is generated.
     :type journey_id: int
+    :param fallback_payload: Optional payload context used when file lookup misses. Must include
+                             `collection_scope` and `data`.
+    :type fallback_payload: dict | None
     :return: If successful, returns a dictionary containing the journey ID, driver's name, and
              the generated summary. If the journey ID is not found, returns an error dictionary
              indicating that the journey was not found.
@@ -161,4 +223,18 @@ def generate_single_summary(events_file, journey_id):
                 summary=summary
             )
 
-    raise HTTPException(status_code=404, detail="Journey not found")
+    _collection_scope, data = _validate_fallback_payload(fallback_payload)
+    row = _get_matching_fallback_row(journey_id, data)
+
+    if row is None:
+        raise HTTPException(status_code=400, detail="Journey id is missing from request data")
+
+    driver = _extract_fallback_driver_metrics(journey_id, row)
+    summary = get_driver_summary(cache, driver)
+    save_cache(cache)
+
+    return DriverSummary(
+        journey_id=driver.id,
+        driver=driver.name,
+        summary=summary
+    )

@@ -7,7 +7,12 @@ logic to `services.summary_pipeline`.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from services.summary_pipeline import generate_single_summary, generate_event_collection_summary
-from models.driver_summary import DriverSummary, DriverCollectionSummaryRequest, DriverCollectionSummary
+from models.driver_summary import (
+    DriverSummary,
+    DriverCollectionSummaryRequest,
+    DriverCollectionSummary,
+    DriverJourneySummaryRequest,
+)
 
 # FastAPI application object used by Uvicorn (`uvicorn api.api:app`).
 app = FastAPI()
@@ -36,7 +41,10 @@ def summarize_collection(payload: DriverCollectionSummaryRequest):
 
 
 @app.post("/ai/driver-summary/{id}", response_model=DriverSummary)
-def summarize_journey(id: int):
-    """Generate a summary for a single journey id using file-backed events data."""
+def summarize_journey(id: int, payload: DriverJourneySummaryRequest | None = None):
+    """Generate a summary for a single journey id with optional fallback payload context."""
 
-    return generate_single_summary('events.json', id)
+    if payload is None:
+        return generate_single_summary('events.json', id)
+
+    return generate_single_summary('events.json', id, payload.model_dump())

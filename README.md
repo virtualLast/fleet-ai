@@ -18,11 +18,13 @@ If you are new to Python, this README is designed to explain **what each part do
 ### Single journey flow (`POST /ai/driver-summary/{id}` or CLI loop)
 
 1. Load source data from `events.json`.
-2. Convert raw row fields into a `DriverMetrics` model.
-3. Check cache first.
-4. If no events are present, return a deterministic low-risk sentence.
-5. Otherwise call OpenAI to generate a short summary.
-6. Store result in cache and return response.
+2. If id exists in file data, convert raw row fields into a `DriverMetrics` model.
+3. If id is not in file data, use request payload fallback (`collection_scope` + `data`) and locate matching row by `id` or `fleetLevelId`.
+4. Validate required fallback context; return `400` when required fields are missing.
+5. Check journey cache first.
+6. If no events are present, return a deterministic low-risk sentence.
+7. Otherwise call OpenAI to generate a short summary.
+8. Store result in cache and return response.
 
 ### Collection flow (`POST /ai/driver-summary`)
 
@@ -162,10 +164,34 @@ Example response shape:
 
 Generate one summary for a single journey id.
 
+If the journey id is not present in local `events.json`, include fallback payload context.
+
+Required fields:
+- `collection_scope`
+- `data[]` with a row matching the requested id by `id` or `fleetLevelId`
+- In the matching row: `fleetLevelName`, `entityName`
+
+Optional fields:
+- Event counters: `adasFcwCount`, `adasHmwCount`, `adasPcwCount`, `adasEventsCount`, `dsmFatigueCount`, `dsmNoDriverCount`, `dsmHandheldDevicesCount`, `dsmSmokingCount`, `dsmDistractionCount`, `dsmYawningCount`, `dsmSeatbeltCount`, `dsmEventsCount`
+- Omitted counters default to `0`.
+
 Example request:
 
 ```bash
-curl -X POST http://localhost:8000/ai/driver-summary/77
+curl -X POST http://localhost:8000/ai/driver-summary/77 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_scope": "fleet=North;period=2026-05-01..2026-05-05",
+    "data": [
+      {
+        "fleetLevelId": 77,
+        "fleetLevelName": "North Depot",
+        "entityName": "Alex Driver",
+        "adasFcwCount": 1,
+        "dsmDistractionCount": 0
+      }
+    ]
+  }'
 ```
 
 ## Caching behavior
@@ -221,5 +247,7 @@ Run a specific suite:
   - Confirm network access to OpenAI APIs.
 - `422 Unprocessable Entity` on `POST /ai/driver-summary`:
   - Verify payload keys and data types match the request model.
-- `404 Journey not found` on `POST /ai/driver-summary/{id}`:
-  - Confirm the ID exists in `events.json`.
+- `400` on `POST /ai/driver-summary/{id}`:
+  - Include `collection_scope` when the journey id is missing from `events.json`.
+  - Include non-empty `data` payload with a row matching the requested id (`id` or `fleetLevelId`).
+  - Ensure required matching-row fields are present (`fleetLevelName`, `entityName`).

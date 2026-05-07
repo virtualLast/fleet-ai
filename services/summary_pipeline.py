@@ -4,10 +4,12 @@ from models.driver_summary import DriverSummary, DriverCollectionSummary
 from util.data_loader import load_events
 from services.driver_metrics import extract_driver_metrics
 from services.summary_service import get_driver_summary
-from services.ai_summary import generate_collection_summary
+from services.ai_summary import generate_collection_summary, generate_driver_journey_collection_summary
 from cache.cache_worker import (
     load_cache,
     save_cache,
+    get_cached_summary,
+    store_summary,
     load_event_collection_cache,
     save_event_collection_cache,
     get_cached_event_collection_summary,
@@ -166,6 +168,26 @@ def _validate_fallback_payload(fallback_payload: dict | None) -> tuple[str, list
     return collection_scope.strip(), data
 
 
+def _extract_collection_driver_name(journey_id: int, data: list[dict]) -> str:
+    """Return a representative driver name, preferring a journey-id row match."""
+
+    matching_row = _get_matching_fallback_row(journey_id, data)
+
+    if matching_row is not None:
+        raw_name = matching_row.get("entityName")
+
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip()
+
+    for row in data:
+        raw_name = row.get("entityName")
+
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip()
+
+    return "unknown"
+
+
 def _extract_fallback_driver_metrics(journey_id: int, row: dict):
     """Validate minimum fallback row fields and convert to driver metrics."""
 
@@ -204,8 +226,33 @@ def generate_single_summary(events_file, journey_id, fallback_payload: dict | No
     :rtype: dict
     """
 
-    events = load_events(events_file)
     cache = load_cache()
+
+    if fallback_payload is not None:
+        _collection_scope, data = _validate_fallback_payload(fallback_payload)
+        driver_name = _extract_collection_driver_name(journey_id, data)
+
+        cached_summary = get_cached_summary(cache, journey_id)
+
+        if cached_summary:
+            return DriverSummary(
+                journey_id=journey_id,
+                driver=driver_name,
+                summary=cached_summary,
+            )
+
+        summary = generate_driver_journey_collection_summary(data)
+
+        store_summary(cache, journey_id, driver_name, summary)
+        save_cache(cache)
+
+        return DriverSummary(
+            journey_id=journey_id,
+            driver=driver_name,
+            summary=summary,
+        )
+
+    events = load_events(events_file)
 
     for event in events:
 
@@ -223,18 +270,4 @@ def generate_single_summary(events_file, journey_id, fallback_payload: dict | No
                 summary=summary
             )
 
-    _collection_scope, data = _validate_fallback_payload(fallback_payload)
-    row = _get_matching_fallback_row(journey_id, data)
-
-    if row is None:
-        raise HTTPException(status_code=400, detail="Journey id is missing from request data")
-
-    driver = _extract_fallback_driver_metrics(journey_id, row)
-    summary = get_driver_summary(cache, driver)
-    save_cache(cache)
-
-    return DriverSummary(
-        journey_id=driver.id,
-        driver=driver.name,
-        summary=summary
-    )
+    raise HTTPException(status_code=404, detail="Journey not found")

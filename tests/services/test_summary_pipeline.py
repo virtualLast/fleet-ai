@@ -150,26 +150,14 @@ def test_generate_single_summary_returns_driver_summary(monkeypatch):
 
 
 def test_generate_single_summary_uses_fallback_payload_when_journey_missing(monkeypatch):
-    driver_metrics = DriverMetrics(
-        id=404,
-        name="Fallback Driver",
-        depot="North Depot",
-        forward_collision=1,
-        following_distance=0,
-        pedestrian_collision=0,
-        fatigue=0,
-        distraction=0,
-        phone_use=0,
-        yawning=0,
-        smoking=0,
-        seatbelt=0,
-    )
     save_called = {"count": 0}
 
-    monkeypatch.setattr(summary_pipeline, "load_events", lambda _file: [{"id": 1}, {"id": 2}])
     monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
-    monkeypatch.setattr(summary_pipeline, "extract_driver_metrics", lambda _event: driver_metrics)
-    monkeypatch.setattr(summary_pipeline, "get_driver_summary", lambda _cache, _driver: "Fallback summary")
+    monkeypatch.setattr(
+        summary_pipeline,
+        "generate_driver_journey_collection_summary",
+        lambda _data: "Fallback collection summary",
+    )
     monkeypatch.setattr(summary_pipeline, "save_cache", lambda _cache: save_called.__setitem__("count", 1))
 
     result = summary_pipeline.generate_single_summary(
@@ -190,7 +178,7 @@ def test_generate_single_summary_uses_fallback_payload_when_journey_missing(monk
 
     assert result.journey_id == 404
     assert result.driver == "Fallback Driver"
-    assert result.summary == "Fallback summary"
+    assert result.summary == "Fallback collection summary"
     assert save_called["count"] == 1
 
 
@@ -232,25 +220,39 @@ def test_generate_single_summary_returns_400_when_data_missing(monkeypatch):
     assert exc_info.value.detail == "Missing required field: data"
 
 
-def test_generate_single_summary_returns_400_when_matching_row_missing(monkeypatch):
-    monkeypatch.setattr(summary_pipeline, "load_events", lambda _file: [{"id": 1}, {"id": 2}])
-    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
+def test_generate_single_summary_uses_cached_summary_for_payload_collection(monkeypatch):
+    monkeypatch.setattr(
+        summary_pipeline,
+        "load_cache",
+        lambda: {"404": {"summary": "Cached payload summary"}},
+    )
+    monkeypatch.setattr(
+        summary_pipeline,
+        "generate_driver_journey_collection_summary",
+        lambda _data: pytest.fail("AI generation should not run on cache hit"),
+    )
+    monkeypatch.setattr(
+        summary_pipeline,
+        "save_cache",
+        lambda _cache: pytest.fail("Cache should not be saved on cache hit"),
+    )
 
-    with pytest.raises(HTTPException) as exc_info:
-        summary_pipeline.generate_single_summary(
-            "events.json",
-            404,
-            {
-                "collection_scope": "scope-a",
-                "data": [
-                    {
-                        "fleetLevelId": 1,
-                        "fleetLevelName": "North Depot",
-                        "entityName": "Fallback Driver",
-                    }
-                ],
-            },
-        )
+    result = summary_pipeline.generate_single_summary(
+        "events.json",
+        404,
+        {
+            "collection_scope": "scope-a",
+            "data": [
+                {
+                    "fleetLevelId": 404,
+                    "fleetLevelName": "North Depot",
+                    "entityName": "Fallback Driver",
+                    "adasFcwCount": 1,
+                }
+            ],
+        },
+    )
 
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Journey id is missing from request data"
+    assert result.journey_id == 404
+    assert result.driver == "Fallback Driver"
+    assert result.summary == "Cached payload summary"

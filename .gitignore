@@ -5,3 +5,5 @@ documentation/research/*
 documentation/todo/*
 !documentation/todo/.gitkeep
 .env
+cache/summary_cache.json
+cache/event-collection-summary.json

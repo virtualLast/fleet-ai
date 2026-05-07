@@ -133,20 +133,8 @@ def test_post_driver_summary_by_id_route_passes_payload_context(monkeypatch):
     assert captured["fallback_payload"]["data"][0]["fleetLevelId"] == 77
 
 
-def test_post_driver_summary_by_id_returns_400_when_collection_scope_missing(monkeypatch):
+def test_post_driver_summary_by_id_returns_422_when_collection_scope_missing():
     client = TestClient(app)
-
-    def fake_generate_single_summary(_events_file, _journey_id, fallback_payload=None):
-        if not (fallback_payload or {}).get("collection_scope"):
-            raise HTTPException(status_code=400, detail="Missing required field: collection_scope")
-
-        return {
-            "journey_id": 77,
-            "driver": "Jamie Driver",
-            "summary": "Journey summary",
-        }
-
-    monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
 
     response = client.post(
         "/ai/driver-summary/77",
@@ -161,29 +149,15 @@ def test_post_driver_summary_by_id_returns_400_when_collection_scope_missing(mon
         },
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing required field: collection_scope"
+    assert response.status_code == 422
 
 
-def test_post_driver_summary_by_id_returns_400_when_data_missing(monkeypatch):
+def test_post_driver_summary_by_id_returns_422_when_data_missing():
     client = TestClient(app)
-
-    def fake_generate_single_summary(_events_file, _journey_id, fallback_payload=None):
-        if not (fallback_payload or {}).get("data"):
-            raise HTTPException(status_code=400, detail="Missing required field: data")
-
-        return {
-            "journey_id": 77,
-            "driver": "Jamie Driver",
-            "summary": "Journey summary",
-        }
-
-    monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
 
     response = client.post(
         "/ai/driver-summary/77",
         json={"collection_scope": "scope-a"},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Missing required field: data"
+    assert response.status_code == 422

@@ -18,13 +18,12 @@ If you are new to Python, this README is designed to explain **what each part do
 ### Single journey flow (`POST /ai/driver-summary/{id}` or CLI loop)
 
 1. Load source data from `events.json`.
-2. If id exists in file data, convert raw row fields into a `DriverMetrics` model.
-3. If id is not in file data, use request payload fallback (`collection_scope` + `data`) and locate matching row by `id` or `fleetLevelId`.
-4. Validate required fallback context; return `400` when required fields are missing.
-5. Check journey cache first.
-6. If no events are present, return a deterministic low-risk sentence.
-7. Otherwise call OpenAI to generate a short summary.
-8. Store result in cache and return response.
+2. For API calls with payload, validate `collection_scope` + non-empty `data` (driver journey event rows).
+3. Check journey cache first using the path id.
+4. If cache misses, evaluate tracked event counters across the full `data` array.
+5. If no events are present, return deterministic low-risk text (no OpenAI call).
+6. If events are present, send the full `data` array to OpenAI for a behavior summary + suggestions.
+7. Store result in cache and return response.
 
 ### Collection flow (`POST /ai/driver-summary`)
 
@@ -162,18 +161,18 @@ Example response shape:
 
 ### `POST /ai/driver-summary/{id}`
 
-Generate one summary for a single journey id.
+Generate one summary for a single driver journey id.
 
-If the journey id is not present in local `events.json`, include fallback payload context.
+When request payload is supplied, the endpoint treats `data` as the journey-level event collection for that driver and summarizes the full array.
 
 Required fields:
 - `collection_scope`
-- `data[]` with a row matching the requested id by `id` or `fleetLevelId`
-- In the matching row: `fleetLevelName`, `entityName`
+- `data[]` with driver event rows (same shape used by collection endpoint rows)
+- In each row: `fleetLevelId`, `fleetLevelName`, `entityName` (event counters default to `0` if omitted)
 
 Optional fields:
-- Event counters: `adasFcwCount`, `adasHmwCount`, `adasPcwCount`, `adasEventsCount`, `dsmFatigueCount`, `dsmNoDriverCount`, `dsmHandheldDevicesCount`, `dsmSmokingCount`, `dsmDistractionCount`, `dsmYawningCount`, `dsmSeatbeltCount`, `dsmEventsCount`
-- Omitted counters default to `0`.
+- Event counters: `adasFcwCount`, `adasHmwCount`, `adasPcwCount`, `adasEventsCount`, `dsmFatigueCount`, `dsmNoDriverCount`, `dsmHandheldDevicesCount`, `dsmSmokingCount`, `dsmDistractionCount`, `dsmYawningCount`, `dsmSeatbeltCount`, `dsmEventsCount`.
+- Extra source fields in each row (for example `id`, `vehicleId`, `startTime`) are accepted and ignored by schema validation.
 
 Example request:
 
@@ -184,11 +183,15 @@ curl -X POST http://localhost:8000/ai/driver-summary/77 \
     "collection_scope": "fleet=North;period=2026-05-01..2026-05-05",
     "data": [
       {
-        "fleetLevelId": 77,
+        "id": 1392170759,
+        "fleetLevelId": 16601,
         "fleetLevelName": "North Depot",
         "entityName": "Alex Driver",
         "adasFcwCount": 1,
-        "dsmDistractionCount": 0
+        "dsmDistractionCount": 0,
+        "dsmSeatbeltCount": 1,
+        "startTime": "2026-04-06T13:13:53+00:00",
+        "endTime": "2026-04-06T13:21:09+00:00"
       }
     ]
   }'
@@ -248,6 +251,5 @@ Run a specific suite:
 - `422 Unprocessable Entity` on `POST /ai/driver-summary`:
   - Verify payload keys and data types match the request model.
 - `400` on `POST /ai/driver-summary/{id}`:
-  - Include `collection_scope` when the journey id is missing from `events.json`.
-  - Include non-empty `data` payload with a row matching the requested id (`id` or `fleetLevelId`).
-  - Ensure required matching-row fields are present (`fleetLevelName`, `entityName`).
+  - Include required `collection_scope` and non-empty `data` when using payload-based summarization.
+  - Ensure each row includes required fields (`fleetLevelId`, `fleetLevelName`, `entityName`).

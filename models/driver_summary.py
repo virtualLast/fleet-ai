@@ -43,12 +43,12 @@ class DriverCollectionSummaryRequest(BaseModel):
 
 
 class DriverJourneySummaryRequest(BaseModel):
-    """Request payload for `POST /ai/driver-summary/{id}` fallback generation."""
+    """Request payload for `POST /ai/driver-summary/{id}` journey event collections."""
 
     # Dataset scope key used by collection-level flow/caching context.
-    collection_scope: str | None = None
-    # Rows used to recover a single driver summary when file lookup misses.
-    data: list[dict] | None = None
+    collection_scope: str
+    # Driver journey event rows provided for summary generation.
+    data: list[DriverEventRecord]
 
 
 class DriverCollectionSummary(BaseModel):

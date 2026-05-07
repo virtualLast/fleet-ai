@@ -42,9 +42,9 @@ def summarize_collection(payload: DriverCollectionSummaryRequest):
 
 @app.post("/ai/driver-summary/{id}", response_model=DriverSummary)
 def summarize_journey(id: int, payload: DriverJourneySummaryRequest | None = None):
-    """Generate a summary for a single journey id with optional fallback payload context."""
+    """Generate a summary for a single journey id with optional payload context."""
 
     if payload is None:
-        return generate_single_summary('events.json', id)
+        return generate_single_summary(id)
 
-    return generate_single_summary('events.json', id, payload.model_dump())
+    return generate_single_summary(id, payload.model_dump())

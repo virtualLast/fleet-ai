@@ -1,10 +1,3 @@
-"""CLI entry point for generating per-driver safety summaries from `events.json`."""
-
-import json
-
-from services.summary_pipeline import generate_summaries
-
-
 def main():
     """Print a simple status message when this module is run directly."""
 

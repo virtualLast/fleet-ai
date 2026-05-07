@@ -1,9 +1,7 @@
 """Pipeline orchestration for CLI and API summary generation flows."""
 
 from models.driver_summary import DriverSummary, DriverCollectionSummary
-from util.data_loader import load_events
 from services.driver_metrics import extract_driver_metrics
-from services.summary_service import get_driver_summary
 from services.ai_summary import generate_collection_summary, generate_driver_journey_collection_summary
 from cache.cache_worker import (
     load_cache,
@@ -16,40 +14,6 @@ from cache.cache_worker import (
     store_event_collection_summary,
 )
 from fastapi import HTTPException
-
-
-def generate_summaries(events_file):
-    """
-    Generate summaries for drivers based on events data.
-
-    :param events_file: Path to the events JSON file.
-    :return: List of driver summaries.
-    """
-
-    events = load_events(events_file)
-
-    driver_metrics = [
-        extract_driver_metrics(driver)
-        for driver in events
-    ]
-
-    cache = load_cache()
-
-    summaries = []
-
-    for driver in driver_metrics:
-
-        summary = get_driver_summary(cache, driver)
-
-        summaries.append(DriverSummary(
-            journey_id=driver.id,
-            driver=driver.name,
-            summary=summary
-        ))
-
-    save_cache(cache)
-
-    return summaries
 
 
 def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
@@ -204,7 +168,7 @@ def _extract_fallback_driver_metrics(journey_id: int, row: dict):
     return extract_driver_metrics(enriched_row)
 
 
-def generate_single_summary(events_file, journey_id, fallback_payload: dict | None = None):
+def generate_single_summary(journey_id, fallback_payload: dict | None = None):
     """
     Generate a summary for a single journey based on the provided events file and journey ID.
 
@@ -212,9 +176,6 @@ def generate_single_summary(events_file, journey_id, fallback_payload: dict | No
     and journey identified by the given journey ID. It interacts with cached records to generate
     the driver summary and updates the cache with the results.
 
-    :param events_file: Path to the file containing event data. The data is expected to be in a
-                        format that `load_events` can process.
-    :type events_file: str
     :param journey_id: Unique identifier of the journey for which the summary is generated.
     :type journey_id: int
     :param fallback_payload: Optional payload context used when file lookup misses. Must include
@@ -252,22 +213,15 @@ def generate_single_summary(events_file, journey_id, fallback_payload: dict | No
             summary=summary,
         )
 
-    events = load_events(events_file)
+    cached_summary = get_cached_summary(cache, journey_id)
 
-    for event in events:
+    if cached_summary:
+        cached_entry = cache[str(journey_id)]
 
-        if event["id"] == journey_id:
+        return DriverSummary(
+            journey_id=journey_id,
+            driver=cached_entry.get("driver", "unknown"),
+            summary=cached_summary,
+        )
 
-            driver = extract_driver_metrics(event)
-
-            summary = get_driver_summary(cache, driver)
-
-            save_cache(cache)
-
-            return DriverSummary(
-                journey_id=driver.id,
-                driver=driver.name,
-                summary=summary
-            )
-
-    raise HTTPException(status_code=404, detail="Journey not found")
+    raise HTTPException(status_code=404, detail="Journey summary not found")

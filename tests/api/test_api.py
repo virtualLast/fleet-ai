@@ -70,8 +70,7 @@ def test_post_driver_summary_by_id_route_returns_single_summary(monkeypatch):
     client = TestClient(app)
     captured = {}
 
-    def fake_generate_single_summary(events_file, journey_id, fallback_payload=None):
-        captured["events_file"] = events_file
+    def fake_generate_single_summary(journey_id, fallback_payload=None):
         captured["journey_id"] = journey_id
         captured["fallback_payload"] = fallback_payload
         return {
@@ -90,17 +89,29 @@ def test_post_driver_summary_by_id_route_returns_single_summary(monkeypatch):
         "driver": "Jamie Driver",
         "summary": "Journey summary",
     }
-    assert captured["events_file"] == "events.json"
     assert captured["journey_id"] == 77
     assert captured["fallback_payload"] is None
+
+
+def test_post_driver_summary_by_id_route_returns_not_found_when_service_misses(monkeypatch):
+    client = TestClient(app)
+
+    def fake_generate_single_summary(journey_id, fallback_payload=None):
+        raise HTTPException(status_code=404, detail="Journey summary not found")
+
+    monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
+
+    response = client.post("/ai/driver-summary/77")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Journey summary not found"}
 
 
 def test_post_driver_summary_by_id_route_passes_payload_context(monkeypatch):
     client = TestClient(app)
     captured = {}
 
-    def fake_generate_single_summary(events_file, journey_id, fallback_payload=None):
-        captured["events_file"] = events_file
+    def fake_generate_single_summary(journey_id, fallback_payload=None):
         captured["journey_id"] = journey_id
         captured["fallback_payload"] = fallback_payload
         return {
@@ -127,7 +138,6 @@ def test_post_driver_summary_by_id_route_passes_payload_context(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert captured["events_file"] == "events.json"
     assert captured["journey_id"] == 77
     assert captured["fallback_payload"]["collection_scope"] == "scope-a"
     assert captured["fallback_payload"]["data"][0]["fleetLevelId"] == 77

@@ -1,7 +1,6 @@
 import pytest
 from fastapi import HTTPException
 
-from models.driver_metrics import DriverMetrics
 from services import summary_pipeline
 
 
@@ -117,36 +116,32 @@ def test_generate_event_collection_summary_generates_and_saves_on_cache_miss(mon
 
 
 def test_generate_single_summary_returns_driver_summary(monkeypatch):
-    events = [{"id": 200, "entityName": "Mapped Name"}]
-    driver_metrics = DriverMetrics(
-        id=200,
-        name="Alex Driver",
-        depot="North Depot",
-        forward_collision=0,
-        following_distance=0,
-        pedestrian_collision=0,
-        fatigue=0,
-        distraction=0,
-        phone_use=0,
-        yawning=0,
-        smoking=0,
-        seatbelt=0,
+    monkeypatch.setattr(
+        summary_pipeline,
+        "load_cache",
+        lambda: {"200": {"driver": "Alex Driver", "summary": "Driver summary text"}},
+    )
+    monkeypatch.setattr(
+        summary_pipeline,
+        "save_cache",
+        lambda _cache: pytest.fail("Cache should not be saved on cache hit"),
     )
 
-    save_called = {"count": 0}
-
-    monkeypatch.setattr(summary_pipeline, "load_events", lambda _file: events)
-    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
-    monkeypatch.setattr(summary_pipeline, "extract_driver_metrics", lambda _event: driver_metrics)
-    monkeypatch.setattr(summary_pipeline, "get_driver_summary", lambda _cache, _driver: "Driver summary text")
-    monkeypatch.setattr(summary_pipeline, "save_cache", lambda _cache: save_called.__setitem__("count", 1))
-
-    result = summary_pipeline.generate_single_summary("events.json", 200)
+    result = summary_pipeline.generate_single_summary(200)
 
     assert result.journey_id == 200
     assert result.driver == "Alex Driver"
     assert result.summary == "Driver summary text"
-    assert save_called["count"] == 1
+
+
+def test_generate_single_summary_returns_404_when_cache_misses_without_payload(monkeypatch):
+    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
+
+    with pytest.raises(HTTPException) as exc_info:
+        summary_pipeline.generate_single_summary(404)
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Journey summary not found"
 
 
 def test_generate_single_summary_uses_fallback_payload_when_journey_missing(monkeypatch):
@@ -161,7 +156,6 @@ def test_generate_single_summary_uses_fallback_payload_when_journey_missing(monk
     monkeypatch.setattr(summary_pipeline, "save_cache", lambda _cache: save_called.__setitem__("count", 1))
 
     result = summary_pipeline.generate_single_summary(
-        "events.json",
         404,
         {
             "collection_scope": "scope-a",
@@ -183,12 +177,10 @@ def test_generate_single_summary_uses_fallback_payload_when_journey_missing(monk
 
 
 def test_generate_single_summary_returns_400_when_collection_scope_missing(monkeypatch):
-    monkeypatch.setattr(summary_pipeline, "load_events", lambda _file: [{"id": 1}, {"id": 2}])
     monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
 
     with pytest.raises(HTTPException) as exc_info:
         summary_pipeline.generate_single_summary(
-            "events.json",
             404,
             {
                 "data": [
@@ -206,12 +198,10 @@ def test_generate_single_summary_returns_400_when_collection_scope_missing(monke
 
 
 def test_generate_single_summary_returns_400_when_data_missing(monkeypatch):
-    monkeypatch.setattr(summary_pipeline, "load_events", lambda _file: [{"id": 1}, {"id": 2}])
     monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
 
     with pytest.raises(HTTPException) as exc_info:
         summary_pipeline.generate_single_summary(
-            "events.json",
             404,
             {"collection_scope": "scope-a"},
         )
@@ -238,7 +228,6 @@ def test_generate_single_summary_uses_cached_summary_for_payload_collection(monk
     )
 
     result = summary_pipeline.generate_single_summary(
-        "events.json",
         404,
         {
             "collection_scope": "scope-a",

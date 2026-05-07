@@ -7,3 +7,5 @@ documentation/todo/*
 .env
 cache/summary_cache.json
 cache/event-collection-summary.json
+__pycache__/
+*.py[cod]

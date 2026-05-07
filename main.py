@@ -6,14 +6,9 @@ from services.summary_pipeline import generate_summaries
 
 
 def main():
-    """Run the summary pipeline and print serializable output for shell consumption."""
+    """Print a simple status message when this module is run directly."""
 
-    # Generate typed `DriverSummary` models from the local events dataset.
-    summaries = generate_summaries("events.json")
-
-    # Convert models to dictionaries before pretty-printing JSON.
-    print(json.dumps([s.model_dump() for s in summaries], indent=2))
-
+    print("Fleet AI service is available. Please refer to the README.")
 
 if __name__ == "__main__":
     main()

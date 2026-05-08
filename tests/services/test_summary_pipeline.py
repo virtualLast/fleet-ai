@@ -227,7 +227,7 @@ def test_validate_driver_behaviour_payload_rejects_mixed_driver_ids():
     assert exc_info.value.detail == "Payload must contain exactly one driverId"
 
 
-def test_aggregate_driver_behaviour_payload_returns_compact_totals_and_notables():
+def test_aggregate_driver_behaviour_payload_returns_risk_profile_and_behaviour_summary():
     raw_data = [
         {"entityName": "David Price"},
         {"entityName": "David Price"},
@@ -277,12 +277,20 @@ def test_aggregate_driver_behaviour_payload_returns_compact_totals_and_notables(
     assert aggregated["driver_id"] == 312870
     assert aggregated["journey_count"] == 2
     assert aggregated["event_count"] == 3
-    assert aggregated["totals"]["seatbelt_events"] == 1
-    assert aggregated["totals"]["fatigue_events"] == 1
-    assert aggregated["totals"]["distraction_events"] == 1
-    assert aggregated["totals"]["dsm_events"] == 3
-    assert aggregated["notable_journeys"][0]["id"] == 2
-    assert "seatbelt_events" in aggregated["top_risk_signals"]
+    assert aggregated["behaviour_summary"] == {
+        "seatbelt_events": 1,
+        "fatigue_events": 1,
+        "distraction_events": 1,
+        "adas_events": 0,
+    }
+    assert aggregated["risk_profile"] == {
+        "model_version": "v1",
+        "risk_level": "high",
+        "risk_score": 5.5,
+        "confidence": "medium",
+        "primary_concerns": ["fatigue", "distraction", "seatbelt"],
+        "requires_intervention": True,
+    }
 
 
 def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
@@ -293,15 +301,20 @@ def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
         "driver_id": 0,
         "journey_count": 0,
         "event_count": 0,
-        "totals": {
-            "adas_events": 0,
+        "risk_profile": {
+            "model_version": "v1",
+            "risk_level": "low",
+            "risk_score": 0.0,
+            "confidence": "low",
+            "primary_concerns": [],
+            "requires_intervention": False,
+        },
+        "behaviour_summary": {
             "seatbelt_events": 0,
             "fatigue_events": 0,
             "distraction_events": 0,
-            "dsm_events": 0,
+            "adas_events": 0,
         },
-        "top_risk_signals": [],
-        "notable_journeys": [],
     }
 
 

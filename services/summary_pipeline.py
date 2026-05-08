@@ -10,6 +10,7 @@ from services.ai_summary import (
     generate_driver_journey_collection_summary,
     generate_driver_behaviour_aggregated_summary,
 )
+from services.risk.driver_risk_engine import DriverRiskEngine
 from cache.cache_worker import (
     CACHE_SCHEMA_VERSION,
     build_driver_behaviour_cache_key,
@@ -170,13 +171,28 @@ def _extract_driver_name_from_behaviour_rows(raw_data: list[dict]) -> str:
 
 
 def _calculate_behaviour_row_event_count(row: dict) -> int:
-    """Return per-journey tracked event total used for ranking notable journeys."""
+    """Return per-journey tracked event total used for response metadata."""
 
     return max(0, int(row.get("adasEventsCount", 0) or 0)) + max(0, int(row.get("dsmEventsCount", 0) or 0))
 
 
+def _build_behaviour_summary_from_breakdown(behaviour_breakdown: dict) -> dict:
+    """Build AI-facing behaviour summary counters from risk-engine breakdown."""
+
+    return {
+        "seatbelt_events": int(behaviour_breakdown.get("dsm_seatbelt", {}).get("raw_event_count", 0) or 0),
+        "fatigue_events": int(behaviour_breakdown.get("dsm_fatigue", {}).get("raw_event_count", 0) or 0),
+        "distraction_events": int(behaviour_breakdown.get("dsm_distraction", {}).get("raw_event_count", 0) or 0),
+        "adas_events": int(behaviour_breakdown.get("adas_events", {}).get("raw_event_count", 0) or 0),
+    }
+
+
 def _aggregate_driver_behaviour_payload(raw_data: list[dict], normalized_data: list[dict]) -> dict:
-    """Aggregate normalized behaviour rows into a compact AI-ready payload."""
+    """Build strict AI payload from deterministic risk-engine outputs."""
+
+    risk_profile = DriverRiskEngine.build_risk_profile(normalized_data)
+    behaviour_breakdown = DriverRiskEngine.compute_behaviour_breakdown(normalized_data)
+    behaviour_summary = _build_behaviour_summary_from_breakdown(behaviour_breakdown)
 
     if not normalized_data:
         return {
@@ -184,70 +200,20 @@ def _aggregate_driver_behaviour_payload(raw_data: list[dict], normalized_data: l
             "driver_id": 0,
             "journey_count": 0,
             "event_count": 0,
-            "totals": {
-                "adas_events": 0,
-                "seatbelt_events": 0,
-                "fatigue_events": 0,
-                "distraction_events": 0,
-                "dsm_events": 0,
-            },
-            "top_risk_signals": [],
-            "notable_journeys": [],
+            "risk_profile": risk_profile,
+            "behaviour_summary": behaviour_summary,
         }
 
-    driver_id = normalized_data[0]["driverId"]
-    total_adas_events = sum(row["adasEventsCount"] for row in normalized_data)
-    total_dsm_events = sum(row["dsmEventsCount"] for row in normalized_data)
-    total_seatbelt_events = sum(row["dsmSeatbeltCount"] for row in normalized_data)
-    total_fatigue_events = sum(row["dsmFatigueCount"] for row in normalized_data)
-    total_distraction_events = sum(row["dsmDistractionCount"] for row in normalized_data)
-
-    totals = {
-        "adas_events": total_adas_events,
-        "seatbelt_events": total_seatbelt_events,
-        "fatigue_events": total_fatigue_events,
-        "distraction_events": total_distraction_events,
-        "dsm_events": total_dsm_events,
-    }
-
-    ranked_signals = sorted(
-        (
-            ("seatbelt_events", total_seatbelt_events),
-            ("fatigue_events", total_fatigue_events),
-            ("distraction_events", total_distraction_events),
-            ("adas_events", total_adas_events),
-            ("dsm_events", total_dsm_events),
-        ),
-        key=lambda item: item[1],
-        reverse=True,
-    )
-    top_risk_signals = [name for name, value in ranked_signals if value > 0][:3]
-
-    notable_rows = [row for row in normalized_data if _calculate_behaviour_row_event_count(row) > 0]
-    notable_rows.sort(key=_calculate_behaviour_row_event_count, reverse=True)
-
-    notable_journeys = [
-        {
-            "id": row["id"],
-            "startTime": row["startTime"],
-            "endTime": row["endTime"],
-            "adasEventsCount": row["adasEventsCount"],
-            "dsmEventsCount": row["dsmEventsCount"],
-            "dsmSeatbeltCount": row["dsmSeatbeltCount"],
-            "dsmFatigueCount": row["dsmFatigueCount"],
-            "dsmDistractionCount": row["dsmDistractionCount"],
-        }
-        for row in notable_rows[:5]
-    ]
+    driver_id = normalized_data[0].get("driverId", 0)
+    event_count = sum(_calculate_behaviour_row_event_count(row) for row in normalized_data)
 
     return {
         "driver_name": _extract_driver_name_from_behaviour_rows(raw_data),
         "driver_id": driver_id,
         "journey_count": len(normalized_data),
-        "event_count": sum(_calculate_behaviour_row_event_count(row) for row in normalized_data),
-        "totals": totals,
-        "top_risk_signals": top_risk_signals,
-        "notable_journeys": notable_journeys,
+        "event_count": event_count,
+        "risk_profile": risk_profile,
+        "behaviour_summary": behaviour_summary,
     }
 
 
@@ -256,10 +222,13 @@ def _build_zero_event_driver_behaviour_summary(aggregated_payload: dict) -> str:
 
     driver_name = aggregated_payload.get("driver_name", "unknown")
     journey_count = aggregated_payload.get("journey_count", 0)
+    risk_profile = aggregated_payload.get("risk_profile", {})
+    risk_level = risk_profile.get("risk_level", "low")
+    confidence = risk_profile.get("confidence", "low")
 
     return (
         f"{driver_name} completed {journey_count} journeys with no tracked ADAS or DSM events. "
-        "This indicates a low observed risk profile in the selected period. "
+        f"The deterministic risk engine assessed overall risk as {risk_level} with {confidence} confidence. "
         "Continue routine monitoring to maintain this standard."
     )
 

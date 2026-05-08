@@ -24,11 +24,21 @@ If you are new to Python, this README is designed to explain **what each part do
    - normalized `data`
 5. Check filesystem cache at `cache/driver_behaviour/{sha256}.json`.
 6. On cache miss:
-   - aggregate metrics into compact AI payload
-   - if all events are zero, return deterministic static summary (no AI request)
-   - otherwise generate AI summary from aggregated payload
+   - run deterministic risk engine (`services/risk/driver_risk_engine.py`) to compute:
+     - behaviour breakdown
+     - risk score + risk level
+     - confidence
+     - primary concerns
+     - risk model version
+   - build strict AI payload using only deterministic outputs (`risk_profile` + `behaviour_summary`)
+   - if all tracked behaviour counters are zero, return deterministic static summary (no AI request)
+   - otherwise generate AI narrative summary
    - persist cache entry metadata + summary
 7. Return `{cached, cache_key, driver_id, event_count, summary}`.
+
+Ownership rule:
+- The risk engine is the only component allowed to interpret behavioural data.
+- Pipeline, API, and AI layers must treat risk-engine output as immutable truth.
 
 ## Core modules explained
 
@@ -37,9 +47,11 @@ If you are new to Python, this README is designed to explain **what each part do
 - `api/api.py`
   - FastAPI route layer. Keeps endpoint handlers thin and delegates to services.
 - `services/summary_pipeline.py`
-  - Main orchestration layer for payload validation, deterministic normalization/hash, cache checks, aggregation, and response model creation.
+  - Main orchestration layer for payload validation, deterministic normalization/hash, cache checks, risk-engine invocation, and response model creation.
+- `services/risk/driver_risk_engine.py`
+  - Deterministic risk-analysis source of truth (weights, scoring, confidence, primary concerns, model versioning).
 - `services/ai_summary.py`
-  - Prompt construction and OpenAI request handling for collection and aggregated behaviour summaries.
+  - Narrative-only prompt construction and OpenAI request handling; does not compute/override risk.
 - `services/driver_metrics.py`
   - Maps raw event JSON fields into normalized `DriverMetrics`.
 - `models/`
@@ -157,10 +169,45 @@ Example response shape:
   "cache_key": "<sha256>",
   "driver_id": 312870,
   "event_count": 1,
-  "summary": "...",
-  "generated_at": "2026-05-08T12:00:00Z"
+  "summary": "..."
 }
 ```
+
+### Internal deterministic AI input contract (pipeline -> AI service)
+
+The AI layer receives only deterministic backend output:
+
+```json
+{
+  "driver_id": 402495,
+  "driver_name": "Martin Hever",
+  "journey_count": 14,
+  "risk_profile": {
+    "model_version": "v1",
+    "risk_level": "low|medium|high",
+    "risk_score": 0.0,
+    "confidence": "low|medium|high",
+    "primary_concerns": ["seatbelt"],
+    "requires_intervention": false
+  },
+  "behaviour_summary": {
+    "seatbelt_events": 14,
+    "fatigue_events": 0,
+    "distraction_events": 0,
+    "adas_events": 0
+  }
+}
+```
+
+Notes:
+- `behaviour_summary` is a pipeline-level projection of risk-engine breakdown output.
+- Source values come from `DriverRiskEngine.compute_behaviour_breakdown(...)` and use each behaviour's `raw_event_count` (not `journey_presence_count`) to populate the flat `*_events` fields shown above.
+
+AI non-goals:
+- Must not infer severity from raw event counts.
+- Must not compute or override risk scoring.
+- Must not introduce behavioural categories not present in input.
+- Must not perform risk modelling, behavioural classification, thresholding, or weight logic.
 
 ## Caching behavior
 
@@ -172,6 +219,7 @@ Example response shape:
   - `collection_scope`
   - normalized `data`
 - This prevents cache fragmentation due to row ordering, numeric string/int differences, and irrelevant metadata changes.
+- Cache keys are deterministic backend artifacts and must never include AI-generated text.
 - Bumping `CACHE_SCHEMA_VERSION` invalidates old cache entries when normalization/prompt/schema contracts change.
 
 ## Running tests

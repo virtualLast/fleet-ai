@@ -8,31 +8,27 @@ If you are new to Python, this README is designed to explain **what each part do
 
 - Reads driver event records from JSON data.
 - Normalizes event counters into typed models.
-- Generates:
-  - single-journey summaries, and
-  - collection-level summaries.
+- Generates collection-based driver behaviour summaries.
 - Caches generated summaries in local JSON files to reduce repeated AI calls.
 
 ## How the project works (high-level flow)
 
-### Single journey flow (`POST /ai/driver-summary/{id}` or CLI loop)
+### Driver behaviour flow (`POST /ai/driver-behaviour-summary`)
 
-1. Load source data from `events.json`.
-2. For API calls with payload, validate `collection_scope` + non-empty `data` (driver journey event rows).
-3. Check journey cache first using the path id.
-4. If cache misses, evaluate tracked event counters across the full `data` array.
-5. If no events are present, return deterministic low-risk text (no OpenAI call).
-6. If events are present, send the full `data` array to OpenAI for a behavior summary + suggestions.
-7. Store result in cache and return response.
-
-### Collection flow (`POST /ai/driver-summary`)
-
-1. Receive `collection_scope` and `data` payload.
-2. Normalize incoming rows (IDs, names, numeric event counters).
-3. Check collection cache by `collection_scope`.
-4. If all tracked event counters are zero, return deterministic low-risk text.
-5. Otherwise call OpenAI for a concise collection insight.
-6. Store and return response with `collection_scope`, `driver_ids`, `summary`, `generated_at`.
+1. Receive `collection_scope` and `data` payload for one driver.
+2. Validate semantic contract (non-empty `data`, coherent `driverId`, parseable timestamps).
+3. Normalize rows for deterministic caching (sort, coerce numeric strings to ints, exclude irrelevant fields).
+4. Build deterministic cache key from:
+   - `CACHE_SCHEMA_VERSION`
+   - `collection_scope`
+   - normalized `data`
+5. Check filesystem cache at `cache/driver_behaviour/{sha256}.json`.
+6. On cache miss:
+   - aggregate metrics into compact AI payload
+   - if all events are zero, return deterministic static summary (no AI request)
+   - otherwise generate AI summary from aggregated payload
+   - persist cache entry metadata + summary
+7. Return `{cached, cache_key, driver_id, event_count, summary}`.
 
 ## Core modules explained
 
@@ -41,17 +37,15 @@ If you are new to Python, this README is designed to explain **what each part do
 - `api/api.py`
   - FastAPI route layer. Keeps endpoint handlers thin and delegates to services.
 - `services/summary_pipeline.py`
-  - Main orchestration layer for file/API input, normalization, cache checks, and response model creation.
-- `services/summary_service.py`
-  - Driver-level summary logic (cache-first, zero-event shortcut, AI path).
+  - Main orchestration layer for payload validation, deterministic normalization/hash, cache checks, aggregation, and response model creation.
 - `services/ai_summary.py`
-  - Prompt construction and OpenAI request handling.
+  - Prompt construction and OpenAI request handling for collection and aggregated behaviour summaries.
 - `services/driver_metrics.py`
   - Maps raw event JSON fields into normalized `DriverMetrics`.
 - `models/`
   - Pydantic schemas used for typed data validation and API response contracts.
 - `cache/cache_worker.py`
-  - JSON cache load/store helpers for both journey and collection summaries.
+  - Cache load/store helpers including deterministic hash-based filesystem cache entries.
 - `util/data_loader.py`
   - Minimal file loader utility for JSON event input.
 - `tests/`
@@ -114,35 +108,42 @@ uvicorn api.api:app --host 0.0.0.0 --port 8000 --reload
 
 ## API endpoints
 
-### `POST /ai/driver-summary`
+### `POST /ai/driver-behaviour-summary`
 
-Generate one summary for a collection payload.
+Generate one behaviour summary for a single-driver collection payload.
 
 Example request:
 
 ```bash
-curl -X POST http://localhost:8000/ai/driver-summary \
+curl -X POST http://localhost:8000/ai/driver-behaviour-summary \
   -H "Content-Type: application/json" \
   -d '{
-    "collection_scope": "fleet=North;period=2026-05-01..2026-05-05",
+    "collection_scope": "/frink/vision/journey?...",
     "data": [
       {
-        "fleetLevelId": 501,
-        "fleetLevelName": "North Depot",
-        "vrn": null,
-        "adasFcwCount": 1,
+        "id": 1392170759,
+        "entityName": "David Price",
+        "driverId": 312870,
+        "vehicleId": 142818,
+        "fleetLevelId": 16601,
+        "fleetLevelName": "399 Canton",
+        "vrn": "BX74OAP",
+        "startTime": "2026-04-06T13:13:53+00:00",
+        "endTime": "2026-04-06T13:21:09+00:00",
+        "adasFcwCount": 0,
         "adasHmwCount": 0,
         "adasPcwCount": 0,
-        "adasEventsCount": 1,
+        "adasEventsCount": 0,
         "dsmFatigueCount": 0,
         "dsmNoDriverCount": 0,
         "dsmHandheldDevicesCount": 0,
         "dsmSmokingCount": 0,
-        "dsmDistractionCount": 1,
+        "dsmDistractionCount": 0,
         "dsmYawningCount": 0,
-        "dsmSeatbeltCount": 0,
+        "dsmSeatbeltCount": 1,
         "dsmEventsCount": 1,
-        "entityName": "Alex Driver"
+        "startPosn": ["51.47658", "-3.18497", "Plantagenet Street, Cardiff, UK"],
+        "endPosn": ["51.48223", "-3.20308", "5 Library Street, Cardiff, UK"]
       }
     ]
   }'
@@ -152,59 +153,26 @@ Example response shape:
 
 ```json
 {
-  "collection_scope": "fleet=North;period=2026-05-01..2026-05-05",
-  "driver_ids": [501],
+  "cached": false,
+  "cache_key": "<sha256>",
+  "driver_id": 312870,
+  "event_count": 1,
   "summary": "...",
-  "generated_at": "2026-05-05"
+  "generated_at": "2026-05-08T12:00:00Z"
 }
-```
-
-### `POST /ai/driver-summary/{id}`
-
-Generate one summary for a single driver journey id.
-
-When request payload is supplied, the endpoint treats `data` as the journey-level event collection for that driver and summarizes the full array.
-
-Required fields:
-- `collection_scope`
-- `data[]` with driver event rows (same shape used by collection endpoint rows)
-- In each row: `fleetLevelId`, `fleetLevelName`, `entityName` (event counters default to `0` if omitted)
-
-Optional fields:
-- Event counters: `adasFcwCount`, `adasHmwCount`, `adasPcwCount`, `adasEventsCount`, `dsmFatigueCount`, `dsmNoDriverCount`, `dsmHandheldDevicesCount`, `dsmSmokingCount`, `dsmDistractionCount`, `dsmYawningCount`, `dsmSeatbeltCount`, `dsmEventsCount`.
-- Extra source fields in each row (for example `id`, `vehicleId`, `startTime`) are accepted and ignored by schema validation.
-
-Example request:
-
-```bash
-curl -X POST http://localhost:8000/ai/driver-summary/77 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "collection_scope": "fleet=North;period=2026-05-01..2026-05-05",
-    "data": [
-      {
-        "id": 1392170759,
-        "fleetLevelId": 16601,
-        "fleetLevelName": "North Depot",
-        "entityName": "Alex Driver",
-        "adasFcwCount": 1,
-        "dsmDistractionCount": 0,
-        "dsmSeatbeltCount": 1,
-        "startTime": "2026-04-06T13:13:53+00:00",
-        "endTime": "2026-04-06T13:21:09+00:00"
-      }
-    ]
-  }'
 ```
 
 ## Caching behavior
 
-- Journey summaries are cached in `cache/summary_cache.json`.
-  - Key: `journey_id` converted to string.
-- Collection summaries are cached in `cache/event-collection-summary.json`.
-  - Key: `collection_scope`.
-
-Caching is used to avoid unnecessary repeated OpenAI calls for the same input scope.
+- Behaviour summaries are cached as one file per deterministic key:
+  - Directory: `cache/driver_behaviour/`
+  - Filename: `{sha256}.json`
+- Hash input source:
+  - `version` (`CACHE_SCHEMA_VERSION`, currently `v1`)
+  - `collection_scope`
+  - normalized `data`
+- This prevents cache fragmentation due to row ordering, numeric string/int differences, and irrelevant metadata changes.
+- Bumping `CACHE_SCHEMA_VERSION` invalidates old cache entries when normalization/prompt/schema contracts change.
 
 ## Running tests
 
@@ -240,7 +208,9 @@ Run a specific suite:
 4. Validate local endpoint:
 
    ```bash
-   curl -X POST http://localhost:8000/ai/driver-summary/1
+   curl -X POST http://localhost:8000/ai/driver-behaviour-summary \
+     -H "Content-Type: application/json" \
+     -d '{"collection_scope":"scope-a","data":[{"id":1,"entityName":"Driver","driverId":1,"vehicleId":1,"fleetLevelId":1,"fleetLevelName":"North","startTime":"2026-04-06T13:13:53+00:00","endTime":"2026-04-06T13:21:09+00:00"}]}'
    ```
 
 ## Troubleshooting
@@ -248,8 +218,9 @@ Run a specific suite:
 - `Error generating summary` responses:
   - Check `OPENAI_API_KEY` is set.
   - Confirm network access to OpenAI APIs.
-- `422 Unprocessable Entity` on `POST /ai/driver-summary`:
-  - Verify payload keys and data types match the request model.
-- `400` on `POST /ai/driver-summary/{id}`:
-  - Include required `collection_scope` and non-empty `data` when using payload-based summarization.
-  - Ensure each row includes required fields (`fleetLevelId`, `fleetLevelName`, `entityName`).
+- `422 Unprocessable Entity` on `POST /ai/driver-behaviour-summary`:
+  - Verify payload keys and required row fields (`id`, `entityName`, `driverId`, `vehicleId`, `fleetLevelId`, `fleetLevelName`, `startTime`, `endTime`).
+- `400` from behaviour pipeline validation:
+  - Ensure `collection_scope` is present and non-empty.
+  - Ensure `data` is non-empty and all rows belong to the same positive `driverId`.
+  - Ensure `startTime`/`endTime` values are valid timestamps.

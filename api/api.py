@@ -4,15 +4,19 @@ This module keeps endpoint functions intentionally thin and delegates business
 logic to `services.summary_pipeline`.
 """
 
+import logging
+
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from services.summary_pipeline import generate_single_summary, generate_event_collection_summary
+from services.summary_pipeline import generate_driver_behaviour_summary
 from models.driver_summary import (
-    DriverSummary,
-    DriverCollectionSummaryRequest,
-    DriverCollectionSummary,
-    DriverJourneySummaryRequest,
+    DriverBehaviourSummary,
+    DriverBehaviourSummaryRequest,
 )
+
+
+logger = logging.getLogger(__name__)
 
 # FastAPI application object used by Uvicorn (`uvicorn api.api:app`).
 app = FastAPI()
@@ -30,21 +34,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/ai/driver-summary", response_model=DriverCollectionSummary)
-def summarize_collection(payload: DriverCollectionSummaryRequest):
-    """Generate one summary for an entire collection payload."""
+@app.post("/ai/driver-behaviour-summary", response_model=DriverBehaviourSummary)
+def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
+    """Generate one behaviour summary for a single-driver collection payload."""
 
     # Convert validated Pydantic objects into plain dicts expected by pipeline normalization.
-    collection_data = [driver.model_dump() for driver in payload.data]
+    collection_data = [event.model_dump() for event in payload.data]
 
-    return generate_event_collection_summary(payload.collection_scope, collection_data)
-
-
-@app.post("/ai/driver-summary/{id}", response_model=DriverSummary)
-def summarize_journey(id: int, payload: DriverJourneySummaryRequest | None = None):
-    """Generate a summary for a single journey id with optional payload context."""
-
-    if payload is None:
-        return generate_single_summary(id)
-
-    return generate_single_summary(id, payload.model_dump())
+    try:
+        return generate_driver_behaviour_summary(payload.collection_scope, collection_data)
+    except HTTPException:
+        raise
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        logger.exception("Failed to generate driver behaviour summary")
+        raise HTTPException(status_code=500, detail="Internal server error") from error

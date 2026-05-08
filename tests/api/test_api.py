@@ -1,35 +1,41 @@
 from fastapi.testclient import TestClient
-from fastapi import HTTPException
 
 from api.api import app
 
 
-def test_post_driver_summary_returns_collection_summary(monkeypatch):
+def test_post_driver_behaviour_summary_returns_summary(monkeypatch):
     client = TestClient(app)
 
     captured = {}
 
-    def fake_generate_event_collection_summary(collection_scope, data):
+    def fake_generate_driver_behaviour_summary(collection_scope, data):
         captured["collection_scope"] = collection_scope
         captured["data"] = data
         return {
-            "collection_scope": collection_scope,
-            "driver_ids": [501],
-            "summary": "Collection summary",
-            "generated_at": "2026-05-05",
+            "cached": False,
+            "cache_key": "abc123",
+            "driver_id": 312870,
+            "event_count": 1,
+            "summary": "Driver behaviour summary",
         }
 
-    monkeypatch.setattr("api.api.generate_event_collection_summary", fake_generate_event_collection_summary)
+    monkeypatch.setattr("api.api.generate_driver_behaviour_summary", fake_generate_driver_behaviour_summary)
 
     payload = {
         "collection_scope": "scope-a",
         "data": [
             {
-                "fleetLevelId": 501,
-                "fleetLevelName": "North Depot",
-                "vrn": None,
+                "id": 1392170759,
+                "entityName": "David Price",
+                "driverId": 312870,
+                "vehicleId": 142818,
+                "fleetLevelId": 16601,
+                "fleetLevelName": "399 Canton",
+                "vrn": "BX74OAP",
+                "startTime": "2026-04-06T13:13:53+00:00",
+                "endTime": "2026-04-06T13:21:09+00:00",
                 "adasFcwCount": 0,
-                "adasHmwCount": 1,
+                "adasHmwCount": 0,
                 "adasPcwCount": 0,
                 "adasEventsCount": 1,
                 "dsmFatigueCount": 0,
@@ -39,135 +45,93 @@ def test_post_driver_summary_returns_collection_summary(monkeypatch):
                 "dsmDistractionCount": 0,
                 "dsmYawningCount": 0,
                 "dsmSeatbeltCount": 0,
-                "dsmEventsCount": 0,
-                "entityName": "Alex Driver",
+                "dsmEventsCount": 1,
             }
         ],
     }
 
-    response = client.post("/ai/driver-summary", json=payload)
+    response = client.post("/ai/driver-behaviour-summary", json=payload)
 
     assert response.status_code == 200
     assert response.json() == {
-        "collection_scope": "scope-a",
-        "driver_ids": [501],
-        "summary": "Collection summary",
-        "generated_at": "2026-05-05",
+        "cached": False,
+        "cache_key": "abc123",
+        "driver_id": 312870,
+        "event_count": 1,
+        "summary": "Driver behaviour summary",
     }
     assert captured["collection_scope"] == "scope-a"
-    assert captured["data"][0]["fleetLevelId"] == 501
+    assert captured["data"][0]["driverId"] == 312870
 
 
-def test_post_driver_summary_validates_payload():
+def test_post_driver_behaviour_summary_returns_422_when_data_missing():
     client = TestClient(app)
 
-    response = client.post("/ai/driver-summary", json={"collection_scope": "scope-a", "data": [{"entityName": "A"}]})
+    response = client.post("/ai/driver-behaviour-summary", json={"collection_scope": "scope-a"})
 
     assert response.status_code == 422
 
 
-def test_post_driver_summary_by_id_route_returns_single_summary(monkeypatch):
+def test_post_driver_behaviour_summary_returns_422_when_data_empty():
     client = TestClient(app)
-    captured = {}
+    response = client.post(
+        "/ai/driver-behaviour-summary",
+        json={"collection_scope": "scope-a", "data": []},
+    )
 
-    def fake_generate_single_summary(journey_id, fallback_payload=None):
-        captured["journey_id"] = journey_id
-        captured["fallback_payload"] = fallback_payload
-        return {
-            "journey_id": 77,
-            "driver": "Jamie Driver",
-            "summary": "Journey summary",
-        }
-
-    monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
-
-    response = client.post("/ai/driver-summary/77")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "journey_id": 77,
-        "driver": "Jamie Driver",
-        "summary": "Journey summary",
-    }
-    assert captured["journey_id"] == 77
-    assert captured["fallback_payload"] is None
+    assert response.status_code == 422
 
 
-def test_post_driver_summary_by_id_route_returns_not_found_when_service_misses(monkeypatch):
+def test_post_driver_behaviour_summary_returns_422_when_required_row_field_missing():
     client = TestClient(app)
-
-    def fake_generate_single_summary(journey_id, fallback_payload=None):
-        raise HTTPException(status_code=404, detail="Journey summary not found")
-
-    monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
-
-    response = client.post("/ai/driver-summary/77")
-
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Journey summary not found"}
-
-
-def test_post_driver_summary_by_id_route_passes_payload_context(monkeypatch):
-    client = TestClient(app)
-    captured = {}
-
-    def fake_generate_single_summary(journey_id, fallback_payload=None):
-        captured["journey_id"] = journey_id
-        captured["fallback_payload"] = fallback_payload
-        return {
-            "journey_id": journey_id,
-            "driver": "Jamie Driver",
-            "summary": "Journey summary",
-        }
-
-    monkeypatch.setattr("api.api.generate_single_summary", fake_generate_single_summary)
 
     response = client.post(
-        "/ai/driver-summary/77",
+        "/ai/driver-behaviour-summary",
         json={
             "collection_scope": "scope-a",
             "data": [
                 {
-                    "fleetLevelId": 77,
-                    "fleetLevelName": "North Depot",
-                    "entityName": "Jamie Driver",
-                    "adasFcwCount": 1,
+                    "id": 1,
+                    "entityName": "David Price",
+                    "vehicleId": 142818,
+                    "fleetLevelId": 16601,
+                    "fleetLevelName": "399 Canton",
+                    "startTime": "2026-04-06T13:13:53+00:00",
+                    "endTime": "2026-04-06T13:21:09+00:00",
                 }
             ],
         },
     )
 
-    assert response.status_code == 200
-    assert captured["journey_id"] == 77
-    assert captured["fallback_payload"]["collection_scope"] == "scope-a"
-    assert captured["fallback_payload"]["data"][0]["fleetLevelId"] == 77
+    assert response.status_code == 422
 
 
-def test_post_driver_summary_by_id_returns_422_when_collection_scope_missing():
+def test_post_driver_behaviour_summary_returns_500_when_pipeline_fails(monkeypatch):
     client = TestClient(app)
 
+    def fake_generate_driver_behaviour_summary(_collection_scope, _data):
+        raise RuntimeError("Unexpected failure")
+
+    monkeypatch.setattr("api.api.generate_driver_behaviour_summary", fake_generate_driver_behaviour_summary)
+
     response = client.post(
-        "/ai/driver-summary/77",
+        "/ai/driver-behaviour-summary",
         json={
+            "collection_scope": "scope-a",
             "data": [
                 {
-                    "fleetLevelId": 77,
-                    "fleetLevelName": "North Depot",
-                    "entityName": "Jamie Driver",
+                    "id": 1,
+                    "entityName": "David Price",
+                    "driverId": 312870,
+                    "vehicleId": 142818,
+                    "fleetLevelId": 16601,
+                    "fleetLevelName": "399 Canton",
+                    "startTime": "2026-04-06T13:13:53+00:00",
+                    "endTime": "2026-04-06T13:21:09+00:00",
                 }
-            ]
+            ],
         },
     )
 
-    assert response.status_code == 422
-
-
-def test_post_driver_summary_by_id_returns_422_when_data_missing():
-    client = TestClient(app)
-
-    response = client.post(
-        "/ai/driver-summary/77",
-        json={"collection_scope": "scope-a"},
-    )
-
-    assert response.status_code == 422
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal server error"}

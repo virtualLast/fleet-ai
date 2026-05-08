@@ -1,19 +1,311 @@
 """Pipeline orchestration for CLI and API summary generation flows."""
 
-from models.driver_summary import DriverSummary, DriverCollectionSummary
+from datetime import datetime
+from datetime import timezone
+
+from models.driver_summary import DriverSummary, DriverCollectionSummary, DriverBehaviourSummary
 from services.driver_metrics import extract_driver_metrics
-from services.ai_summary import generate_collection_summary, generate_driver_journey_collection_summary
+from services.ai_summary import (
+    generate_collection_summary,
+    generate_driver_journey_collection_summary,
+    generate_driver_behaviour_aggregated_summary,
+)
 from cache.cache_worker import (
+    CACHE_SCHEMA_VERSION,
+    build_driver_behaviour_cache_key,
+    load_driver_behaviour_cache_entry,
     load_cache,
     save_cache,
     get_cached_summary,
     store_summary,
+    store_driver_behaviour_cache_entry,
     load_event_collection_cache,
     save_event_collection_cache,
     get_cached_event_collection_summary,
     store_event_collection_summary,
 )
 from fastapi import HTTPException
+
+
+DRIVER_BEHAVIOUR_HASH_FIELDS = (
+    "adasFcwCount",
+    "adasHmwCount",
+    "adasPcwCount",
+    "adasEventsCount",
+    "dsmFatigueCount",
+    "dsmNoDriverCount",
+    "dsmHandheldDevicesCount",
+    "dsmSmokingCount",
+    "dsmDistractionCount",
+    "dsmYawningCount",
+    "dsmSeatbeltCount",
+    "dsmEventsCount",
+)
+
+
+def _normalize_driver_behaviour_hash_data(raw_data: list[dict]) -> list[dict]:
+    """Return deterministic hash-ready rows for behaviour summary caching.
+
+    Normalization rules:
+    - Keep only stable fields relevant to caching semantics.
+    - Coerce numeric event counters and identifiers into integers.
+    - Exclude non-deterministic / irrelevant fields (e.g. positions, addresses).
+    - Sort by stable keys so payload ordering does not change cache keys.
+    """
+
+    def _safe_int(value, fallback=0):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    def _safe_text(value):
+        if value is None:
+            return ""
+
+        return str(value).strip()
+
+    normalized_rows = []
+
+    for row in raw_data:
+        if not isinstance(row, dict):
+            continue
+
+        normalized_rows.append({
+            "id": _safe_int(row.get("id", 0), 0),
+            "driverId": _safe_int(row.get("driverId", 0), 0),
+            "startTime": _safe_text(row.get("startTime")),
+            "endTime": _safe_text(row.get("endTime")),
+            **{field: _safe_int(row.get(field, 0), 0) for field in DRIVER_BEHAVIOUR_HASH_FIELDS},
+        })
+
+    normalized_rows.sort(
+        key=lambda row: (
+            row["id"],
+            row["driverId"],
+            row["startTime"],
+            row["endTime"],
+        )
+    )
+
+    return normalized_rows
+
+
+def _build_driver_behaviour_hash_source(collection_scope: str, raw_data: list[dict]) -> dict:
+    """Build deterministic hash source for behaviour summary cache key generation."""
+
+    return {
+        "version": CACHE_SCHEMA_VERSION,
+        "collection_scope": collection_scope,
+        "data": _normalize_driver_behaviour_hash_data(raw_data),
+    }
+
+
+def _build_driver_behaviour_cache_key(collection_scope: str, raw_data: list[dict]) -> str:
+    """Generate deterministic SHA256 cache key for behaviour summary requests."""
+
+    hash_source = _build_driver_behaviour_hash_source(collection_scope, raw_data)
+    return build_driver_behaviour_cache_key(hash_source)
+
+
+def _validate_driver_behaviour_payload(collection_scope: str, data: list[dict]) -> int:
+    """Validate behaviour payload semantics and return the single driver id."""
+
+    if not isinstance(collection_scope, str) or not collection_scope.strip():
+        raise HTTPException(status_code=400, detail="Missing required field: collection_scope")
+
+    if not isinstance(data, list) or not data:
+        raise HTTPException(status_code=400, detail="Missing required field: data")
+
+    expected_driver_id = None
+
+    for index, row in enumerate(data):
+        if not isinstance(row, dict):
+            raise HTTPException(status_code=400, detail=f"Invalid row at index {index}")
+
+        raw_driver_id = row.get("driverId")
+
+        try:
+            driver_id = int(raw_driver_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Invalid driverId at row {index}")
+
+        if driver_id <= 0:
+            raise HTTPException(status_code=400, detail=f"Invalid driverId at row {index}")
+
+        if expected_driver_id is None:
+            expected_driver_id = driver_id
+        elif driver_id != expected_driver_id:
+            raise HTTPException(status_code=400, detail="Payload must contain exactly one driverId")
+
+        for timestamp_field in ("startTime", "endTime"):
+            raw_timestamp = row.get(timestamp_field)
+
+            if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
+                raise HTTPException(status_code=400, detail=f"Malformed timestamp: {timestamp_field}")
+
+            normalized_timestamp = raw_timestamp.strip().replace("Z", "+00:00")
+
+            try:
+                datetime.fromisoformat(normalized_timestamp)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Malformed timestamp: {timestamp_field}")
+
+    return expected_driver_id
+
+
+def _extract_driver_name_from_behaviour_rows(raw_data: list[dict]) -> str:
+    """Return the first non-empty driver name available in behaviour payload rows."""
+
+    for row in raw_data:
+        if not isinstance(row, dict):
+            continue
+
+        raw_name = row.get("entityName")
+
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip()
+
+    return "unknown"
+
+
+def _calculate_behaviour_row_event_count(row: dict) -> int:
+    """Return per-journey tracked event total used for ranking notable journeys."""
+
+    return max(0, int(row.get("adasEventsCount", 0) or 0)) + max(0, int(row.get("dsmEventsCount", 0) or 0))
+
+
+def _aggregate_driver_behaviour_payload(raw_data: list[dict], normalized_data: list[dict]) -> dict:
+    """Aggregate normalized behaviour rows into a compact AI-ready payload."""
+
+    if not normalized_data:
+        return {
+            "driver_name": _extract_driver_name_from_behaviour_rows(raw_data),
+            "driver_id": 0,
+            "journey_count": 0,
+            "event_count": 0,
+            "totals": {
+                "adas_events": 0,
+                "seatbelt_events": 0,
+                "fatigue_events": 0,
+                "distraction_events": 0,
+                "dsm_events": 0,
+            },
+            "top_risk_signals": [],
+            "notable_journeys": [],
+        }
+
+    driver_id = normalized_data[0]["driverId"]
+    total_adas_events = sum(row["adasEventsCount"] for row in normalized_data)
+    total_dsm_events = sum(row["dsmEventsCount"] for row in normalized_data)
+    total_seatbelt_events = sum(row["dsmSeatbeltCount"] for row in normalized_data)
+    total_fatigue_events = sum(row["dsmFatigueCount"] for row in normalized_data)
+    total_distraction_events = sum(row["dsmDistractionCount"] for row in normalized_data)
+
+    totals = {
+        "adas_events": total_adas_events,
+        "seatbelt_events": total_seatbelt_events,
+        "fatigue_events": total_fatigue_events,
+        "distraction_events": total_distraction_events,
+        "dsm_events": total_dsm_events,
+    }
+
+    ranked_signals = sorted(
+        (
+            ("seatbelt_events", total_seatbelt_events),
+            ("fatigue_events", total_fatigue_events),
+            ("distraction_events", total_distraction_events),
+            ("adas_events", total_adas_events),
+            ("dsm_events", total_dsm_events),
+        ),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    top_risk_signals = [name for name, value in ranked_signals if value > 0][:3]
+
+    notable_rows = [row for row in normalized_data if _calculate_behaviour_row_event_count(row) > 0]
+    notable_rows.sort(key=_calculate_behaviour_row_event_count, reverse=True)
+
+    notable_journeys = [
+        {
+            "id": row["id"],
+            "startTime": row["startTime"],
+            "endTime": row["endTime"],
+            "adasEventsCount": row["adasEventsCount"],
+            "dsmEventsCount": row["dsmEventsCount"],
+            "dsmSeatbeltCount": row["dsmSeatbeltCount"],
+            "dsmFatigueCount": row["dsmFatigueCount"],
+            "dsmDistractionCount": row["dsmDistractionCount"],
+        }
+        for row in notable_rows[:5]
+    ]
+
+    return {
+        "driver_name": _extract_driver_name_from_behaviour_rows(raw_data),
+        "driver_id": driver_id,
+        "journey_count": len(normalized_data),
+        "event_count": sum(_calculate_behaviour_row_event_count(row) for row in normalized_data),
+        "totals": totals,
+        "top_risk_signals": top_risk_signals,
+        "notable_journeys": notable_journeys,
+    }
+
+
+def _build_zero_event_driver_behaviour_summary(aggregated_payload: dict) -> str:
+    """Build deterministic static response for all-zero behaviour event collections."""
+
+    driver_name = aggregated_payload.get("driver_name", "unknown")
+    journey_count = aggregated_payload.get("journey_count", 0)
+
+    return (
+        f"{driver_name} completed {journey_count} journeys with no tracked ADAS or DSM events. "
+        "This indicates a low observed risk profile in the selected period. "
+        "Continue routine monitoring to maintain this standard."
+    )
+
+
+def generate_driver_behaviour_summary(collection_scope: str, data: list[dict]) -> DriverBehaviourSummary:
+    """Generate driver behaviour summary with deterministic hash-based filesystem caching."""
+
+    driver_id = _validate_driver_behaviour_payload(collection_scope, data)
+    normalized_data = _normalize_driver_behaviour_hash_data(data)
+    cache_key = _build_driver_behaviour_cache_key(collection_scope, data)
+
+    cached_entry = load_driver_behaviour_cache_entry(cache_key)
+
+    if cached_entry:
+        return DriverBehaviourSummary(
+            cached=True,
+            cache_key=cache_key,
+            driver_id=cached_entry.get("driver_id", driver_id),
+            event_count=cached_entry.get("event_count", 0),
+            summary=cached_entry.get("summary", "No summary available."),
+        )
+
+    aggregated_payload = _aggregate_driver_behaviour_payload(data, normalized_data)
+
+    if aggregated_payload["event_count"] <= 0:
+        summary = _build_zero_event_driver_behaviour_summary(aggregated_payload)
+    else:
+        summary = generate_driver_behaviour_aggregated_summary(aggregated_payload)
+
+    cache_entry = {
+        "cache_key": cache_key,
+        "cache_version": CACHE_SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "driver_id": aggregated_payload["driver_id"],
+        "event_count": aggregated_payload["event_count"],
+        "summary": summary,
+    }
+    store_driver_behaviour_cache_entry(cache_key, cache_entry)
+
+    return DriverBehaviourSummary(
+        cached=False,
+        cache_key=cache_key,
+        driver_id=cache_entry["driver_id"],
+        event_count=cache_entry["event_count"],
+        summary=cache_entry["summary"],
+    )
 
 
 def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:

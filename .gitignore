@@ -7,5 +7,6 @@ documentation/todo/*
 .env
 cache/summary_cache.json
 cache/event-collection-summary.json
+cache/driver_behaviour/*
 __pycache__/
 *.py[cod]

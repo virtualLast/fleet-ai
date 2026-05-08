@@ -9,8 +9,8 @@ class DriverSummary(BaseModel):
     summary: str
 
 
-class DriverEventRecord(BaseModel):
-    """Input row model for collection summarization requests."""
+class BaseEventRecord(BaseModel):
+    """Base model for fleet-linked rows with ADAS/DSM counters."""
 
     fleetLevelId: int
     fleetLevelName: str
@@ -32,6 +32,10 @@ class DriverEventRecord(BaseModel):
     dsmSeatbeltCount: int = 0
     dsmEventsCount: int = 0
     entityName: str
+
+
+class DriverEventRecord(BaseEventRecord):
+    """Input row model for collection summarization requests."""
 
 
 class DriverCollectionSummaryRequest(BaseModel):
@@ -110,3 +114,24 @@ class DriverBehaviourSummary(BaseModel):
     driver_id: int
     event_count: int
     summary: str
+
+
+class FleetSummaryEventRecord(BaseEventRecord):
+    """Input row model for fleet-level AI summary requests."""
+
+    id: int
+
+
+class FleetSummaryRequest(BaseModel):
+    """Request payload for `POST /ai/fleet-summary`."""
+
+    collection_scope: str
+    data: list[FleetSummaryEventRecord] = Field(min_length=1)
+
+
+class FleetSummary(BaseModel):
+    """Response model for fleet-level AI summary endpoint."""
+
+    summary: str
+    generated_at: str
+    cache_hit: bool

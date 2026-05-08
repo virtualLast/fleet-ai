@@ -36,6 +36,22 @@ If you are new to Python, this README is designed to explain **what each part do
    - persist cache entry metadata + summary
 7. Return `{cached, cache_key, driver_id, event_count, summary}`.
 
+### Fleet summary flow (`POST /ai/fleet-summary`)
+
+1. Receive `collection_scope` and aggregated fleet-level `data` payload.
+2. Validate semantic contract (`collection_scope` present, non-empty `data`).
+3. Normalize dataset with shared normalization utilities for deterministic cache semantics.
+4. Build deterministic fleet cache key from:
+   - `CACHE_SCHEMA_VERSION`
+   - `collection_scope`
+   - normalized `data`
+5. Check cache via `cache/cache_worker.py` using `fleet_summary:{sha256}` key.
+6. On cache miss:
+   - send full normalized dataset to fleet AI narrative function
+   - generate concise fleet-level operational summary
+   - store cache entry with cache-layer metadata (`generated_at`)
+7. Return `{summary, generated_at, cache_hit}`.
+
 Ownership rule:
 - The risk engine is the only component allowed to interpret behavioural data.
 - Pipeline, API, and AI layers must treat risk-engine output as immutable truth.
@@ -161,6 +177,51 @@ curl -X POST http://localhost:8000/ai/driver-behaviour-summary \
   }'
 ```
 
+### `POST /ai/fleet-summary`
+
+Generate one aggregate fleet-level summary for a collection payload.
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8000/ai/fleet-summary \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_scope": "scope-fleet-a",
+    "data": [
+      {
+        "id": 1392170759,
+        "fleetLevelId": 16601,
+        "fleetLevelName": "399 Canton",
+        "vrn": "BX74OAP",
+        "adasFcwCount": 0,
+        "adasHmwCount": 0,
+        "adasPcwCount": 0,
+        "adasEventsCount": 1,
+        "dsmFatigueCount": 0,
+        "dsmNoDriverCount": 0,
+        "dsmHandheldDevicesCount": 0,
+        "dsmSmokingCount": 0,
+        "dsmDistractionCount": 0,
+        "dsmYawningCount": 0,
+        "dsmSeatbeltCount": 0,
+        "dsmEventsCount": 1,
+        "entityName": "David Price"
+      }
+    ]
+  }'
+```
+
+Example response shape:
+
+```json
+{
+  "summary": "...",
+  "generated_at": "2026-05-08T12:30:00Z",
+  "cache_hit": false
+}
+```
+
 Example response shape:
 
 ```json
@@ -221,6 +282,12 @@ AI non-goals:
 - This prevents cache fragmentation due to row ordering, numeric string/int differences, and irrelevant metadata changes.
 - Cache keys are deterministic backend artifacts and must never include AI-generated text.
 - Bumping `CACHE_SCHEMA_VERSION` invalidates old cache entries when normalization/prompt/schema contracts change.
+
+Fleet summary cache behavior:
+- Fleet summary entries are stored by cache key in the existing cache worker backend (`cache/event-collection-summary.json`).
+- Key format: `fleet_summary:{sha256}` where SHA256 is built from `CACHE_SCHEMA_VERSION + collection_scope + normalized data`.
+- Cache metadata (`generated_at`) is created by cache worker on write.
+- Fleet cache reads apply TTL filtering in cache worker (default 1 hour; configurable via `FLEET_SUMMARY_CACHE_TTL_SECONDS`).
 
 ## Running tests
 

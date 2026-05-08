@@ -3,12 +3,13 @@
 from datetime import datetime
 from datetime import timezone
 
-from models.driver_summary import DriverSummary, DriverCollectionSummary, DriverBehaviourSummary
+from models.driver_summary import DriverSummary, DriverCollectionSummary, DriverBehaviourSummary, FleetSummary
 from services.driver_metrics import extract_driver_metrics
 from services.ai_summary import (
     generate_collection_summary,
     generate_driver_journey_collection_summary,
     generate_driver_behaviour_aggregated_summary,
+    generate_fleet_summary_text,
 )
 from services.risk.driver_risk_engine import DriverRiskEngine
 from cache.cache_worker import (
@@ -24,8 +25,12 @@ from cache.cache_worker import (
     save_event_collection_cache,
     get_cached_event_collection_summary,
     store_event_collection_summary,
+    build_fleet_summary_cache_key,
+    get_fleet_summary_cache,
+    set_fleet_summary_cache,
 )
 from fastapi import HTTPException
+from util.summary_normalization import normalize_summary_dataset
 
 
 DRIVER_BEHAVIOUR_HASH_FIELDS = (
@@ -43,6 +48,18 @@ DRIVER_BEHAVIOUR_HASH_FIELDS = (
     "dsmEventsCount",
 )
 
+FLEET_SUMMARY_INT_FIELDS = (
+    "id",
+    "fleetLevelId",
+    *DRIVER_BEHAVIOUR_HASH_FIELDS,
+)
+
+FLEET_SUMMARY_TEXT_FIELDS = (
+    "fleetLevelName",
+    "entityName",
+    "vrn",
+)
+
 
 def _normalize_driver_behaviour_hash_data(raw_data: list[dict]) -> list[dict]:
     """Return deterministic hash-ready rows for behaviour summary caching.
@@ -54,42 +71,12 @@ def _normalize_driver_behaviour_hash_data(raw_data: list[dict]) -> list[dict]:
     - Sort by stable keys so payload ordering does not change cache keys.
     """
 
-    def _safe_int(value, fallback=0):
-        try:
-            return int(value)
-        except (TypeError, ValueError):
-            return fallback
-
-    def _safe_text(value):
-        if value is None:
-            return ""
-
-        return str(value).strip()
-
-    normalized_rows = []
-
-    for row in raw_data:
-        if not isinstance(row, dict):
-            continue
-
-        normalized_rows.append({
-            "id": _safe_int(row.get("id", 0), 0),
-            "driverId": _safe_int(row.get("driverId", 0), 0),
-            "startTime": _safe_text(row.get("startTime")),
-            "endTime": _safe_text(row.get("endTime")),
-            **{field: _safe_int(row.get(field, 0), 0) for field in DRIVER_BEHAVIOUR_HASH_FIELDS},
-        })
-
-    normalized_rows.sort(
-        key=lambda row: (
-            row["id"],
-            row["driverId"],
-            row["startTime"],
-            row["endTime"],
-        )
+    return normalize_summary_dataset(
+        raw_data,
+        int_fields=("id", "driverId", *DRIVER_BEHAVIOUR_HASH_FIELDS),
+        text_fields=("startTime", "endTime"),
+        sort_keys=("id", "driverId", "startTime", "endTime"),
     )
-
-    return normalized_rows
 
 
 def _build_driver_behaviour_hash_source(collection_scope: str, raw_data: list[dict]) -> dict:
@@ -274,6 +261,46 @@ def generate_driver_behaviour_summary(collection_scope: str, data: list[dict]) -
         driver_id=cache_entry["driver_id"],
         event_count=cache_entry["event_count"],
         summary=cache_entry["summary"],
+    )
+
+
+def generate_fleet_summary(collection_scope: str, data: list[dict]) -> FleetSummary:
+    """Generate aggregate fleet-level summary using cache-first orchestration."""
+
+    if not isinstance(collection_scope, str) or not collection_scope.strip():
+        raise HTTPException(status_code=400, detail="Missing required field: collection_scope")
+
+    if not isinstance(data, list) or not data:
+        raise HTTPException(status_code=400, detail="Missing required field: data")
+
+    normalized_data = normalize_summary_dataset(
+        data,
+        int_fields=FLEET_SUMMARY_INT_FIELDS,
+        text_fields=FLEET_SUMMARY_TEXT_FIELDS,
+        text_defaults={
+            "fleetLevelName": "unknown",
+            "entityName": "unknown",
+            "vrn": "",
+        },
+        sort_keys=("id", "fleetLevelId", "entityName"),
+    )
+    cache_key = build_fleet_summary_cache_key(collection_scope.strip(), normalized_data)
+    cached_entry = get_fleet_summary_cache(cache_key)
+
+    if cached_entry:
+        return FleetSummary(
+            summary=cached_entry.get("summary", "No summary available."),
+            generated_at=cached_entry.get("generated_at", ""),
+            cache_hit=True,
+        )
+
+    summary = generate_fleet_summary_text(normalized_data)
+    cache_entry = set_fleet_summary_cache(cache_key, {"summary": summary})
+
+    return FleetSummary(
+        summary=cache_entry.get("summary", "No summary available."),
+        generated_at=cache_entry.get("generated_at", ""),
+        cache_hit=False,
     )
 
 

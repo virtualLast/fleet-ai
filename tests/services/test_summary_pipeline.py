@@ -420,6 +420,101 @@ def test_generate_driver_behaviour_summary_zero_events_skips_ai_request(monkeypa
     assert "no tracked ADAS or DSM events" in result.summary
 
 
+def test_generate_fleet_summary_returns_cached_result(monkeypatch):
+    monkeypatch.setattr(
+        summary_pipeline,
+        "build_fleet_summary_cache_key",
+        lambda _scope, _data: "fleet_summary:" + "a" * 64,
+    )
+    monkeypatch.setattr(
+        summary_pipeline,
+        "get_fleet_summary_cache",
+        lambda _cache_key: {
+            "summary": "Cached fleet summary",
+            "generated_at": "2026-05-08T12:00:00Z",
+        },
+    )
+    monkeypatch.setattr(
+        summary_pipeline,
+        "generate_fleet_summary_text",
+        lambda _data: pytest.fail("AI generation should not run on cache hit"),
+    )
+
+    result = summary_pipeline.generate_fleet_summary(
+        "scope-a",
+        [
+            {
+                "id": 1,
+                "fleetLevelId": 16601,
+                "fleetLevelName": "399 Canton",
+                "entityName": "Driver A",
+                "adasEventsCount": 1,
+                "dsmEventsCount": 2,
+            }
+        ],
+    )
+
+    assert result.cache_hit is True
+    assert result.summary == "Cached fleet summary"
+    assert result.generated_at == "2026-05-08T12:00:00Z"
+
+
+def test_generate_fleet_summary_generates_and_stores_on_cache_miss(monkeypatch):
+    stored = {}
+
+    monkeypatch.setattr(
+        summary_pipeline,
+        "build_fleet_summary_cache_key",
+        lambda _scope, _data: "fleet_summary:" + "b" * 64,
+    )
+    monkeypatch.setattr(summary_pipeline, "get_fleet_summary_cache", lambda _cache_key: None)
+    monkeypatch.setattr(summary_pipeline, "generate_fleet_summary_text", lambda _data: "Generated fleet summary")
+
+    def fake_set_fleet_summary_cache(cache_key, value):
+        stored["cache_key"] = cache_key
+        stored["value"] = value
+        return {
+            "cache_key": cache_key,
+            "summary": value["summary"],
+            "generated_at": "2026-05-08T12:30:00Z",
+        }
+
+    monkeypatch.setattr(summary_pipeline, "set_fleet_summary_cache", fake_set_fleet_summary_cache)
+
+    result = summary_pipeline.generate_fleet_summary(
+        "scope-a",
+        [
+            {
+                "id": 2,
+                "fleetLevelId": 16601,
+                "fleetLevelName": "399 Canton",
+                "entityName": "Driver B",
+                "adasEventsCount": 3,
+                "dsmEventsCount": 1,
+            }
+        ],
+    )
+
+    assert result.cache_hit is False
+    assert result.summary == "Generated fleet summary"
+    assert result.generated_at == "2026-05-08T12:30:00Z"
+    assert stored["cache_key"] == "fleet_summary:" + "b" * 64
+    assert stored["value"]["summary"] == "Generated fleet summary"
+
+
+def test_generate_fleet_summary_validates_required_fields():
+    with pytest.raises(HTTPException) as missing_scope:
+        summary_pipeline.generate_fleet_summary("", [{"id": 1}])
+
+    with pytest.raises(HTTPException) as missing_data:
+        summary_pipeline.generate_fleet_summary("scope-a", [])
+
+    assert missing_scope.value.status_code == 400
+    assert missing_scope.value.detail == "Missing required field: collection_scope"
+    assert missing_data.value.status_code == 400
+    assert missing_data.value.detail == "Missing required field: data"
+
+
 def test_generate_event_collection_summary_returns_cached_result(monkeypatch):
     cache = {
         "scope-1": {

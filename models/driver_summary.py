@@ -34,27 +34,6 @@ class BaseEventRecord(BaseModel):
     entityName: str
 
 
-class DriverEventRecord(BaseEventRecord):
-    """Input row model for collection summarization requests."""
-
-
-class DriverCollectionSummaryRequest(BaseModel):
-    """Request payload for `POST /ai/driver-summary`."""
-
-    # Unique key that defines the dataset scope (used as collection cache key).
-    collection_scope: str
-    data: list[DriverEventRecord]
-
-
-class DriverJourneySummaryRequest(BaseModel):
-    """Request payload for `POST /ai/driver-summary/{id}` journey event collections."""
-
-    # Dataset scope key used by collection-level flow/caching context.
-    collection_scope: str
-    # Driver journey event rows provided for summary generation.
-    data: list[DriverEventRecord]
-
-
 class DriverCollectionSummary(BaseModel):
     """Response model for one generated collection summary."""
 

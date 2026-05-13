@@ -3,11 +3,9 @@
 from datetime import datetime
 from datetime import timezone
 
-from models.driver_summary import DriverSummary, DriverCollectionSummary, DriverBehaviourSummary, FleetSummary
+from models.driver_summary import DriverBehaviourSummary, FleetSummary
 from services.driver_metrics import extract_driver_metrics
 from services.ai_summary import (
-    generate_collection_summary,
-    generate_driver_journey_collection_summary,
     generate_driver_behaviour_aggregated_summary,
     generate_fleet_summary_text,
 )
@@ -16,15 +14,7 @@ from cache.cache_worker import (
     CACHE_SCHEMA_VERSION,
     build_driver_behaviour_cache_key,
     load_driver_behaviour_cache_entry,
-    load_cache,
-    save_cache,
-    get_cached_summary,
-    store_summary,
     store_driver_behaviour_cache_entry,
-    load_event_collection_cache,
-    save_event_collection_cache,
-    get_cached_event_collection_summary,
-    store_event_collection_summary,
     build_fleet_summary_cache_key,
     get_fleet_summary_cache,
     set_fleet_summary_cache,
@@ -359,25 +349,6 @@ def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
     return normalized_data
 
 
-def generate_event_collection_summary(collection_scope: str, data: list[dict]) -> DriverCollectionSummary:
-    """Return one collection summary using scope-keyed cache and AI on misses."""
-
-    normalized_data = _normalize_collection_data(data)
-    driver_ids = [row["driver_id"] for row in normalized_data]
-    cache = load_event_collection_cache()
-    cached_summary = get_cached_event_collection_summary(cache, collection_scope)
-
-    if cached_summary:
-        return DriverCollectionSummary(**cached_summary)
-
-    summary = generate_collection_summary(normalized_data)
-
-    store_event_collection_summary(cache, collection_scope, driver_ids, summary)
-    save_event_collection_cache(cache)
-
-    return DriverCollectionSummary(**cache[collection_scope])
-
-
 def _get_matching_fallback_row(journey_id: int, data: list[dict]) -> dict | None:
     """Return the payload row that matches journey id by `id` or `fleetLevelId`."""
 
@@ -454,62 +425,3 @@ def _extract_fallback_driver_metrics(journey_id: int, row: dict):
     enriched_row["id"] = journey_id
 
     return extract_driver_metrics(enriched_row)
-
-
-def generate_single_summary(journey_id, fallback_payload: dict | None = None):
-    """
-    Generate a summary for a single journey based on the provided events file and journey ID.
-
-    This function processes events data to extract and compute a summary for a specific driver
-    and journey identified by the given journey ID. It interacts with cached records to generate
-    the driver summary and updates the cache with the results.
-
-    :param journey_id: Unique identifier of the journey for which the summary is generated.
-    :type journey_id: int
-    :param fallback_payload: Optional payload context used when file lookup misses. Must include
-                             `collection_scope` and `data`.
-    :type fallback_payload: dict | None
-    :return: If successful, returns a dictionary containing the journey ID, driver's name, and
-             the generated summary. If the journey ID is not found, returns an error dictionary
-             indicating that the journey was not found.
-    :rtype: dict
-    """
-
-    cache = load_cache()
-
-    if fallback_payload is not None:
-        _collection_scope, data = _validate_fallback_payload(fallback_payload)
-        driver_name = _extract_collection_driver_name(journey_id, data)
-
-        cached_summary = get_cached_summary(cache, journey_id)
-
-        if cached_summary:
-            return DriverSummary(
-                journey_id=journey_id,
-                driver=driver_name,
-                summary=cached_summary,
-            )
-
-        summary = generate_driver_journey_collection_summary(data)
-
-        store_summary(cache, journey_id, driver_name, summary)
-        save_cache(cache)
-
-        return DriverSummary(
-            journey_id=journey_id,
-            driver=driver_name,
-            summary=summary,
-        )
-
-    cached_summary = get_cached_summary(cache, journey_id)
-
-    if cached_summary:
-        cached_entry = cache[str(journey_id)]
-
-        return DriverSummary(
-            journey_id=journey_id,
-            driver=cached_entry.get("driver", "unknown"),
-            summary=cached_summary,
-        )
-
-    raise HTTPException(status_code=404, detail="Journey summary not found")

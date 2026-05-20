@@ -304,6 +304,7 @@ def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
     """
 
     def _safe_int(value, fallback=0):
+        """Convert `value` to int and return `fallback` when conversion fails."""
         try:
             return int(value)
         except (TypeError, ValueError):

@@ -5,6 +5,7 @@ from models.driver_metrics import DriverMetrics
 
 @pytest.fixture
 def sample_driver_metrics() -> DriverMetrics:
+    """Provide a baseline zero-event `DriverMetrics` fixture for service tests."""
     return DriverMetrics(
         id=101,
         name="Alex Driver",
@@ -23,6 +24,7 @@ def sample_driver_metrics() -> DriverMetrics:
 
 @pytest.fixture
 def sample_event_row() -> dict:
+    """Provide one deterministic event row fixture used across parser and API tests."""
     return {
         "id": 101,
         "entityName": "Alex Driver",
@@ -41,6 +43,7 @@ def sample_event_row() -> dict:
 
 @pytest.fixture
 def sample_collection_data() -> list[dict]:
+    """Provide deterministic multi-row collection data for fleet/summary test scenarios."""
     return [
         {
             "fleetLevelId": 501,

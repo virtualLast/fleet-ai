@@ -38,7 +38,21 @@ app.add_middleware(
 
 @app.post("/ai/driver-behaviour-summary", response_model=DriverBehaviourSummary)
 def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
-    """Generate one behaviour summary for a single-driver collection payload."""
+    """Generate a single-driver behaviour summary from validated request payload.
+
+    Args:
+        payload: Request model containing `collection_scope` and one-driver event rows.
+
+    Returns:
+        `DriverBehaviourSummary` with cache metadata, deterministic risk fields, and narrative summary text.
+
+    Side effects:
+        Normalizes request rows, may call AI-backed summary generation through the service pipeline,
+        and may read/write deterministic cache entries.
+
+    Raises:
+        HTTPException: `400` when payload values are semantically invalid, `500` for unexpected failures.
+    """
 
     # Convert validated Pydantic objects into plain dicts expected by pipeline normalization.
     collection_data = [event.model_dump() for event in payload.data]
@@ -56,7 +70,21 @@ def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
 
 @app.post("/ai/fleet-summary", response_model=FleetSummary)
 def summarize_fleet(payload: FleetSummaryRequest):
-    """Generate one aggregate fleet summary for a collection payload."""
+    """Generate a fleet-level aggregate summary for the provided collection payload.
+
+    Args:
+        payload: Request model containing `collection_scope` and fleet event rows.
+
+    Returns:
+        `FleetSummary` including the generated aggregate narrative and cache metadata fields.
+
+    Side effects:
+        Normalizes request rows, may call AI-backed fleet summarization through the pipeline,
+        and may read/write fleet cache entries.
+
+    Raises:
+        HTTPException: `400` when payload values are semantically invalid, `500` for unexpected failures.
+    """
 
     collection_data = [event.model_dump() for event in payload.data]
 

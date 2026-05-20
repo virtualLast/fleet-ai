@@ -296,9 +296,86 @@ At any point, the agent must halt and request clarification if:
 
 ## Project Guidelines
 
+### Writing function / method documentation
+
+Function and method documentation must clearly explain behavior, assumptions, and boundaries.
+
+Required elements (when applicable):
+- What the function/method does
+- Inputs and important assumptions/constraints
+- Return value/output shape
+- Side effects (cache writes, file I/O, API calls, logging side effects)
+- Error/exception behavior
+
+Style rules:
+- Use concise single-line docstrings for simple helper functions.
+- Use multi-line docstrings for non-trivial logic, orchestration, or validation behavior.
+- Start with an action-oriented summary line (e.g., `Return ...`, `Generate ...`, `Normalize ...`).
+
+Example (simple helper):
+
+```python
+def _safe_int(value: object, fallback: int = 0) -> int:
+    """Safely coerce a value into int with fallback for invalid inputs."""
+```
+
+Example (non-trivial function):
+
+```python
+def generate_driver_behaviour_summary(collection_scope: str, collection_data: list[dict]) -> str:
+    """Generate one plain-text summary for a normalized collection dataset.
+
+    Args:
+        collection_scope: Fleet/driver scope identifier for cache and trace context.
+        collection_data: Input rows used to compute deterministic behavior and AI summary.
+
+    Returns:
+        A plain-language summary string.
+
+    Raises:
+        ValueError: If input payload is empty or malformed.
+    """
+```
+
 ### Writing tests
 
 Tests must be properly documented with three key elements:
  - What is being tested
  - Why we have this test
  - How the test is structured
+
+Additional test-writing guidelines:
+- Use behavior-oriented test names that describe expected outcomes.
+- Keep structure clear with `Arrange / Act / Assert` flow.
+- Keep tests deterministic (stable data, controlled mocks/monkeypatching, fixed ordering).
+- Prefer one behavior assertion focus per unit test unless integration scope intentionally validates a full flow.
+- Assert both primary outputs and relevant side effects (cache writes, API calls, persisted fields) when applicable.
+- Use fixtures/monkeypatch only where needed, and avoid hidden coupling between tests.
+
+Example test documentation block:
+
+```python
+"""What: Verify behaviour cache keys are stable across row order and scalar type differences.
+Why: Cache misses for equivalent payloads increase API latency and cost.
+How: Build keys from equivalent payload permutations and assert equality.
+"""
+```
+
+Example test structure:
+
+```python
+def test_generate_driver_behaviour_summary_returns_cached_result(monkeypatch):
+    """What: Return cached summary on cache hit.
+    Why: Avoid unnecessary AI calls and preserve deterministic response latency.
+    How: Stub cache loader to return existing entry and verify generator is not called.
+    """
+
+    # Arrange
+    payload = [{"driverId": "D-1", "tailgating": 0}]
+
+    # Act
+    result = generate_driver_behaviour_summary("scope-1", payload)
+
+    # Assert
+    assert result == "cached summary"
+```

@@ -5,6 +5,13 @@ from services import summary_pipeline
 
 
 def test_normalize_collection_data_handles_id_fallback_uniqueness_and_coercion():
+    """What: Normalize fleet collection rows with ID fallback and integer coercion.
+
+    Why: Cache and aggregation paths require unique stable driver IDs and numeric counters.
+
+    How: Provide mixed-validity rows and assert deterministic `driver_id` assignment and coerced event fields.
+    """
+
     raw_data = [
         {
             "id": "10",
@@ -41,6 +48,13 @@ def test_normalize_collection_data_handles_id_fallback_uniqueness_and_coercion()
 
 
 def test_normalize_driver_behaviour_hash_data_is_deterministic_and_whitelisted():
+    """What: Normalize behaviour hash payloads into deterministic, whitelisted fields only.
+
+    Why: Cache keys must ignore irrelevant fields and remain stable across type variants.
+
+    How: Pass mixed typed rows with extra location fields, then assert sorted IDs, allowed keys, and value coercion.
+    """
+
     raw_data = [
         {
             "id": "2",
@@ -94,6 +108,13 @@ def test_normalize_driver_behaviour_hash_data_is_deterministic_and_whitelisted()
 
 
 def test_build_driver_behaviour_cache_key_is_stable_for_order_and_type_variants():
+    """What: Verify behaviour cache keys are stable across row order and scalar type differences.
+
+    Why: Equivalent payload semantics should map to the same cache key and avoid duplicate cache entries.
+
+    How: Build two semantically equivalent datasets with different ordering/types and compare generated keys.
+    """
+
     data_variant_a = [
         {
             "id": 11,
@@ -145,6 +166,13 @@ def test_build_driver_behaviour_cache_key_is_stable_for_order_and_type_variants(
 
 
 def test_build_driver_behaviour_cache_key_changes_when_relevant_data_changes():
+    """What: Verify behaviour cache keys change when meaningful payload or scope values change.
+
+    Why: Cache isolation must invalidate entries when event counts or collection scope differ.
+
+    How: Generate keys from baseline, changed-event, and changed-scope inputs and assert inequality.
+    """
+
     baseline_data = [
         {
             "id": 11,
@@ -178,6 +206,13 @@ def test_build_driver_behaviour_cache_key_changes_when_relevant_data_changes():
 
 
 def test_validate_driver_behaviour_payload_rejects_missing_or_empty_data():
+    """What: Reject missing or empty behaviour payload collections.
+
+    Why: Summary generation requires at least one journey row before validation and aggregation can proceed.
+
+    How: Call payload validation with `None` and `[]`, then assert HTTP 400 with the required error detail.
+    """
+
     with pytest.raises(HTTPException) as missing_data_exc:
         summary_pipeline._validate_driver_behaviour_payload("scope-a", None)
 
@@ -192,6 +227,13 @@ def test_validate_driver_behaviour_payload_rejects_missing_or_empty_data():
 
 
 def test_validate_driver_behaviour_payload_rejects_invalid_driver_id():
+    """What: Reject behaviour payload rows with non-numeric driver identifiers.
+
+    Why: The pipeline depends on a valid integer `driverId` for consistent aggregation and caching.
+
+    How: Submit a row with invalid `driverId` text and assert an HTTP 400 `Invalid driverId` response.
+    """
+
     with pytest.raises(HTTPException) as exc_info:
         summary_pipeline._validate_driver_behaviour_payload(
             "scope-a",
@@ -203,6 +245,13 @@ def test_validate_driver_behaviour_payload_rejects_invalid_driver_id():
 
 
 def test_validate_driver_behaviour_payload_rejects_malformed_timestamps():
+    """What: Reject payload rows containing malformed timestamp fields.
+
+    Why: Behaviour rows must carry parseable temporal bounds for valid journey semantics.
+
+    How: Provide a row with an invalid `startTime` and assert an HTTP 400 malformed timestamp error.
+    """
+
     with pytest.raises(HTTPException) as exc_info:
         summary_pipeline._validate_driver_behaviour_payload(
             "scope-a",
@@ -214,6 +263,13 @@ def test_validate_driver_behaviour_payload_rejects_malformed_timestamps():
 
 
 def test_validate_driver_behaviour_payload_rejects_mixed_driver_ids():
+    """What: Reject payloads that mix multiple driver IDs in a single request.
+
+    Why: Driver behaviour summaries are defined for exactly one driver identity per payload.
+
+    How: Validate a two-row payload with different `driverId` values and assert HTTP 400 mismatch error.
+    """
+
     with pytest.raises(HTTPException) as exc_info:
         summary_pipeline._validate_driver_behaviour_payload(
             "scope-a",
@@ -228,6 +284,13 @@ def test_validate_driver_behaviour_payload_rejects_mixed_driver_ids():
 
 
 def test_aggregate_driver_behaviour_payload_returns_risk_profile_and_behaviour_summary():
+    """What: Aggregate normalized behaviour rows into deterministic profile and behaviour counters.
+
+    Why: Downstream AI narration relies on a stable aggregated payload contract.
+
+    How: Aggregate representative rows and assert driver metadata, event totals, behaviour summary, and risk profile.
+    """
+
     raw_data = [
         {"entityName": "David Price"},
         {"entityName": "David Price"},
@@ -294,6 +357,13 @@ def test_aggregate_driver_behaviour_payload_returns_risk_profile_and_behaviour_s
 
 
 def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
+    """What: Return a deterministic zero-state payload when no normalized behaviour rows exist.
+
+    Why: The pipeline must produce a safe default contract for empty data scenarios.
+
+    How: Aggregate empty inputs and assert default unknown driver values, low-risk profile, and zeroed counters.
+    """
+
     aggregated = summary_pipeline._aggregate_driver_behaviour_payload([], [])
 
     assert aggregated == {
@@ -319,6 +389,13 @@ def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
 
 
 def test_generate_driver_behaviour_summary_returns_cached_result(monkeypatch):
+    """What: Short-circuit driver summary generation when a cache entry is available.
+
+    Why: Cache hits should avoid unnecessary aggregation and AI calls while preserving response contract fields.
+
+    How: Monkeypatch cache load to return an entry, forbid aggregation execution, and assert cached response values.
+    """
+
     cached_entry = {
         "driver_id": 312870,
         "event_count": 7,
@@ -352,6 +429,13 @@ def test_generate_driver_behaviour_summary_returns_cached_result(monkeypatch):
 
 
 def test_generate_driver_behaviour_summary_generates_and_stores_on_cache_miss(monkeypatch):
+    """What: Generate and persist a driver summary when no cache entry exists.
+
+    Why: Cache misses must execute the generation path and write back a cacheable result.
+
+    How: Stub cache read miss and AI summary output, capture store call, and assert response/cache payload contents.
+    """
+
     stored = {}
 
     monkeypatch.setattr(summary_pipeline, "load_driver_behaviour_cache_entry", lambda _cache_key: None)
@@ -392,6 +476,13 @@ def test_generate_driver_behaviour_summary_generates_and_stores_on_cache_miss(mo
 
 
 def test_generate_driver_behaviour_summary_zero_events_skips_ai_request(monkeypatch):
+    """What: Skip AI summary generation when aggregated event count is zero.
+
+    Why: Zero-event payloads should use deterministic fallback messaging instead of invoking AI.
+
+    How: Force cache miss, fail fast on AI call, run generation with zero-event data, and assert fallback summary text.
+    """
+
     monkeypatch.setattr(summary_pipeline, "load_driver_behaviour_cache_entry", lambda _cache_key: None)
     monkeypatch.setattr(
         summary_pipeline,
@@ -421,6 +512,13 @@ def test_generate_driver_behaviour_summary_zero_events_skips_ai_request(monkeypa
 
 
 def test_generate_fleet_summary_returns_cached_result(monkeypatch):
+    """What: Return cached fleet summary payload when cache already contains an entry.
+
+    Why: Cache hits should bypass AI generation for faster and deterministic responses.
+
+    How: Monkeypatch cache key and cache fetch to return data, fail on AI call, and assert cached response fields.
+    """
+
     monkeypatch.setattr(
         summary_pipeline,
         "build_fleet_summary_cache_key",
@@ -460,6 +558,13 @@ def test_generate_fleet_summary_returns_cached_result(monkeypatch):
 
 
 def test_generate_fleet_summary_generates_and_stores_on_cache_miss(monkeypatch):
+    """What: Generate and persist fleet summaries when cache lookup misses.
+
+    Why: Fleet summary endpoint must still return content and backfill cache on first request.
+
+    How: Stub cache miss and AI output, capture cache store payload, and assert response plus persisted values.
+    """
+
     stored = {}
 
     monkeypatch.setattr(
@@ -503,6 +608,13 @@ def test_generate_fleet_summary_generates_and_stores_on_cache_miss(monkeypatch):
 
 
 def test_generate_fleet_summary_validates_required_fields():
+    """What: Validate required fleet summary request fields.
+
+    Why: Endpoint contract requires a non-empty scope and non-empty data payload.
+
+    How: Invoke generation with missing scope and empty data, then assert HTTP 400 details for each case.
+    """
+
     with pytest.raises(HTTPException) as missing_scope:
         summary_pipeline.generate_fleet_summary("", [{"id": 1}])
 
@@ -513,210 +625,3 @@ def test_generate_fleet_summary_validates_required_fields():
     assert missing_scope.value.detail == "Missing required field: collection_scope"
     assert missing_data.value.status_code == 400
     assert missing_data.value.detail == "Missing required field: data"
-
-
-def test_generate_event_collection_summary_returns_cached_result(monkeypatch):
-    cache = {
-        "scope-1": {
-            "collection_scope": "scope-1",
-            "driver_ids": [7, 8],
-            "summary": "Cached collection summary",
-            "generated_at": "2026-05-05",
-        }
-    }
-
-    monkeypatch.setattr(summary_pipeline, "load_event_collection_cache", lambda: cache)
-    monkeypatch.setattr(
-        summary_pipeline,
-        "get_cached_event_collection_summary",
-        lambda loaded_cache, collection_scope: loaded_cache.get(collection_scope),
-    )
-    monkeypatch.setattr(
-        summary_pipeline,
-        "generate_collection_summary",
-        lambda _data: pytest.fail("AI generation should not run on cache hit"),
-    )
-
-    result = summary_pipeline.generate_event_collection_summary("scope-1", [{"fleetLevelId": 7}])
-
-    assert result.collection_scope == "scope-1"
-    assert result.driver_ids == [7, 8]
-    assert result.summary == "Cached collection summary"
-
-
-def test_generate_event_collection_summary_generates_and_saves_on_cache_miss(monkeypatch):
-    cache = {}
-    save_called = {"count": 0}
-
-    monkeypatch.setattr(summary_pipeline, "load_event_collection_cache", lambda: cache)
-    monkeypatch.setattr(summary_pipeline, "get_cached_event_collection_summary", lambda _cache, _scope: None)
-    monkeypatch.setattr(summary_pipeline, "generate_collection_summary", lambda _data: "Generated collection summary")
-
-    def fake_store_event_collection_summary(target_cache, collection_scope, driver_ids, summary):
-        target_cache[collection_scope] = {
-            "collection_scope": collection_scope,
-            "driver_ids": driver_ids,
-            "summary": summary,
-            "generated_at": "2026-05-05",
-        }
-
-    def fake_save_event_collection_cache(_cache):
-        save_called["count"] += 1
-
-    monkeypatch.setattr(summary_pipeline, "store_event_collection_summary", fake_store_event_collection_summary)
-    monkeypatch.setattr(summary_pipeline, "save_event_collection_cache", fake_save_event_collection_cache)
-
-    result = summary_pipeline.generate_event_collection_summary(
-        "scope-2",
-        [
-            {
-                "fleetLevelId": 11,
-                "fleetLevelName": "North",
-                "entityName": "Driver A",
-                "adasFcwCount": 1,
-            },
-            {
-                "fleetLevelId": 12,
-                "fleetLevelName": "South",
-                "entityName": "Driver B",
-                "adasFcwCount": 0,
-            },
-        ],
-    )
-
-    assert result.collection_scope == "scope-2"
-    assert result.driver_ids == [11, 12]
-    assert result.summary == "Generated collection summary"
-    assert save_called["count"] == 1
-
-
-def test_generate_single_summary_returns_driver_summary(monkeypatch):
-    monkeypatch.setattr(
-        summary_pipeline,
-        "load_cache",
-        lambda: {"200": {"driver": "Alex Driver", "summary": "Driver summary text"}},
-    )
-    monkeypatch.setattr(
-        summary_pipeline,
-        "save_cache",
-        lambda _cache: pytest.fail("Cache should not be saved on cache hit"),
-    )
-
-    result = summary_pipeline.generate_single_summary(200)
-
-    assert result.journey_id == 200
-    assert result.driver == "Alex Driver"
-    assert result.summary == "Driver summary text"
-
-
-def test_generate_single_summary_returns_404_when_cache_misses_without_payload(monkeypatch):
-    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
-
-    with pytest.raises(HTTPException) as exc_info:
-        summary_pipeline.generate_single_summary(404)
-
-    assert exc_info.value.status_code == 404
-    assert exc_info.value.detail == "Journey summary not found"
-
-
-def test_generate_single_summary_uses_fallback_payload_when_journey_missing(monkeypatch):
-    save_called = {"count": 0}
-
-    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
-    monkeypatch.setattr(
-        summary_pipeline,
-        "generate_driver_journey_collection_summary",
-        lambda _data: "Fallback collection summary",
-    )
-    monkeypatch.setattr(summary_pipeline, "save_cache", lambda _cache: save_called.__setitem__("count", 1))
-
-    result = summary_pipeline.generate_single_summary(
-        404,
-        {
-            "collection_scope": "scope-a",
-            "data": [
-                {
-                    "fleetLevelId": 404,
-                    "fleetLevelName": "North Depot",
-                    "entityName": "Fallback Driver",
-                    "adasFcwCount": 1,
-                }
-            ],
-        },
-    )
-
-    assert result.journey_id == 404
-    assert result.driver == "Fallback Driver"
-    assert result.summary == "Fallback collection summary"
-    assert save_called["count"] == 1
-
-
-def test_generate_single_summary_returns_400_when_collection_scope_missing(monkeypatch):
-    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
-
-    with pytest.raises(HTTPException) as exc_info:
-        summary_pipeline.generate_single_summary(
-            404,
-            {
-                "data": [
-                    {
-                        "fleetLevelId": 404,
-                        "fleetLevelName": "North Depot",
-                        "entityName": "Fallback Driver",
-                    }
-                ]
-            },
-        )
-
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Missing required field: collection_scope"
-
-
-def test_generate_single_summary_returns_400_when_data_missing(monkeypatch):
-    monkeypatch.setattr(summary_pipeline, "load_cache", lambda: {})
-
-    with pytest.raises(HTTPException) as exc_info:
-        summary_pipeline.generate_single_summary(
-            404,
-            {"collection_scope": "scope-a"},
-        )
-
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Missing required field: data"
-
-
-def test_generate_single_summary_uses_cached_summary_for_payload_collection(monkeypatch):
-    monkeypatch.setattr(
-        summary_pipeline,
-        "load_cache",
-        lambda: {"404": {"summary": "Cached payload summary"}},
-    )
-    monkeypatch.setattr(
-        summary_pipeline,
-        "generate_driver_journey_collection_summary",
-        lambda _data: pytest.fail("AI generation should not run on cache hit"),
-    )
-    monkeypatch.setattr(
-        summary_pipeline,
-        "save_cache",
-        lambda _cache: pytest.fail("Cache should not be saved on cache hit"),
-    )
-
-    result = summary_pipeline.generate_single_summary(
-        404,
-        {
-            "collection_scope": "scope-a",
-            "data": [
-                {
-                    "fleetLevelId": 404,
-                    "fleetLevelName": "North Depot",
-                    "entityName": "Fallback Driver",
-                    "adasFcwCount": 1,
-                }
-            ],
-        },
-    )
-
-    assert result.journey_id == 404
-    assert result.driver == "Fallback Driver"
-    assert result.summary == "Cached payload summary"

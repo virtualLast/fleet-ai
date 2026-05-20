@@ -10,3 +10,5 @@ cache/event-collection-summary.json
 cache/driver_behaviour/*
 __pycache__/
 *.py[cod]
+review_actions.txt
+tests/prompt_regressions/prompt_regression_runs.jsonl

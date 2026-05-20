@@ -20,16 +20,19 @@ GOLDEN_ROOT = Path("tests/golden_datasets")
 
 
 def _load_json(path: Path) -> dict:
+    """Load a golden dataset or expectation JSON fixture from disk."""
     return json.loads(path.read_text())
 
 
 def _patch_summary_output(monkeypatch, summary_text: str):
+    """Patch AI client with deterministic summary text for integration assertions."""
     class FakeResponse:
         output_text = summary_text
 
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):
+            """Return deterministic fake response for mocked AI calls."""
             return FakeResponse()
 
     class FakeClient:
@@ -57,6 +60,11 @@ def _patch_summary_output(monkeypatch, summary_text: str):
     ],
 )
 def test_driver_summary_golden_dataset_flow(monkeypatch, scenario: str, mocked_summary: str):
+    """What: Validate full driver-summary flow against golden datasets.
+
+    Why: Integration coverage ensures scoring and semantic assertions stay stable across scenarios.
+    How: Load golden input/expectations, run pipeline+summary path with patched model output, and assert risk/semantic checks.
+    """
     dataset = _load_json(GOLDEN_ROOT / "input" / f"{scenario}.json")
     expectations = _load_json(GOLDEN_ROOT / "expectations" / f"{scenario}.json")
 

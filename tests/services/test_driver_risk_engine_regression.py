@@ -4,6 +4,7 @@ from services.risk.driver_risk_engine import DriverRiskEngine
 
 
 def _sample_rows() -> list[dict]:
+    """Return a deterministic baseline dataset for risk-engine regression assertions."""
     return [
         {
             "adasEventsCount": 0,
@@ -25,6 +26,11 @@ def _sample_rows() -> list[dict]:
 
 
 def test_risk_score_stability_for_identical_datasets():
+    """What: Verify identical datasets produce stable risk profile outputs.
+
+    Why: Deterministic scoring is required for reproducible summaries and cache behavior.
+    How: Build profiles from original/deep-copied rows and compare core outputs.
+    """
     rows = _sample_rows()
 
     profile_a = DriverRiskEngine.build_risk_profile(rows)
@@ -36,6 +42,11 @@ def test_risk_score_stability_for_identical_datasets():
 
 
 def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repetition():
+    """What: Verify severity weighting outranks low-severity repetition volume.
+
+    Why: Risk model should prioritize high-impact categories over repeated minor events.
+    How: Compare profiles from seatbelt-heavy vs mixed high-severity datasets.
+    """
     low_severity_repetition = [
         {
             "adasEventsCount": 0,
@@ -67,6 +78,11 @@ def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repe
 
 
 def test_concentration_rule_stability_single_category_dominance_yields_low_confidence():
+    """What: Verify single-category dominance yields low confidence classification.
+
+    Why: Narrow behaviour concentration should be flagged as lower-confidence evidence.
+    How: Build seatbelt-dominant dataset and assert confidence/concerns outputs.
+    """
     dominant_single_category = [
         {
             "adasEventsCount": 0,
@@ -93,6 +109,11 @@ def test_concentration_rule_stability_single_category_dominance_yields_low_confi
 
 
 def test_model_version_stability_matches_current_constant():
+    """What: Verify generated profile includes the current risk model version constant.
+
+    Why: Version tagging is required for traceability and cache invalidation logic.
+    How: Build profile and assert populated `model_version` matches engine constant.
+    """
     profile = DriverRiskEngine.build_risk_profile(_sample_rows())
 
     assert profile["model_version"]

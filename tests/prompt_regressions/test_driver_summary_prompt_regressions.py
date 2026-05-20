@@ -24,10 +24,12 @@ MAX_METADATA_LINES = 500
 
 
 def _load_json(path: Path) -> dict:
+    """Load a JSON document from disk for prompt-regression fixtures."""
     return json.loads(path.read_text())
 
 
 def _append_run_metadata(dataset_name: str, summary: str) -> None:
+    """Append bounded prompt-regression execution metadata for traceability."""
     METADATA_LOG.parent.mkdir(parents=True, exist_ok=True)
     METADATA_LOG.touch(exist_ok=True)
     payload = {
@@ -52,6 +54,11 @@ def _append_run_metadata(dataset_name: str, summary: str) -> None:
     ],
 )
 def test_driver_summary_prompt_regression_semantics_live_model(scenario: str):
+    """What: Verify live-model summaries satisfy semantic regression expectations.
+
+    Why: Prompt drift can regress safety language and risk-alignment semantics.
+    How: Build aggregated payload from golden input, generate summary, and assert semantic constraints.
+    """
     if not os.getenv("OPENAI_API_KEY"):
         pytest.skip("OPENAI_API_KEY not configured for prompt regression test")
 

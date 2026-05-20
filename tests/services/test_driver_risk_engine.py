@@ -2,6 +2,11 @@ from services.risk.driver_risk_engine import DriverRiskEngine
 
 
 def test_compute_behaviour_breakdown_tracks_raw_counts_and_journey_presence():
+    """What: Verify behaviour breakdown tracks raw totals and journey presence.
+
+    Why: Risk scoring requires both intensity and spread metrics per behaviour.
+    How: Build multi-row input and assert expected aggregate counters.
+    """
     normalized_data = [
         {
             "adasEventsCount": 0,
@@ -40,6 +45,11 @@ def test_compute_behaviour_breakdown_tracks_raw_counts_and_journey_presence():
 
 
 def test_calculate_weighted_risk_score_uses_journey_presence_not_raw_event_totals():
+    """What: Verify weighted score uses journey presence rather than raw totals.
+
+    Why: Repeated events in one journey should not over-inflate risk.
+    How: Provide high raw counts with low presence and assert bounded score.
+    """
     behaviour_breakdown = {
         "dsm_fatigue": {"raw_event_count": 0, "journey_presence_count": 0},
         "dsm_distraction": {"raw_event_count": 0, "journey_presence_count": 0},
@@ -56,6 +66,11 @@ def test_calculate_weighted_risk_score_uses_journey_presence_not_raw_event_total
 
 
 def test_classify_risk_level_uses_expected_boundaries():
+    """What: Verify risk-level classifier boundary thresholds are stable.
+
+    Why: Boundary drift would change downstream messaging and interventions.
+    How: Assert expected labels around low/medium/high cutoff values.
+    """
     assert DriverRiskEngine.classify_risk_level(0.9999) == "low"
     assert DriverRiskEngine.classify_risk_level(1.0) == "medium"
     assert DriverRiskEngine.classify_risk_level(2.9999) == "medium"
@@ -63,6 +78,11 @@ def test_classify_risk_level_uses_expected_boundaries():
 
 
 def test_compute_confidence_applies_single_signal_and_dominance_rules():
+    """What: Verify confidence drops for single-signal and dominant-pattern inputs.
+
+    Why: Narrow evidence profiles should be communicated with uncertainty.
+    How: Build sparse/dominant breakdowns and assert low confidence outputs.
+    """
     single_signal_breakdown = {
         "dsm_fatigue": {"raw_event_count": 0, "journey_presence_count": 0},
         "dsm_distraction": {"raw_event_count": 0, "journey_presence_count": 0},
@@ -85,6 +105,11 @@ def test_compute_confidence_applies_single_signal_and_dominance_rules():
 
 
 def test_compute_confidence_returns_medium_and_high_for_distribution_levels():
+    """What: Verify confidence increases with broader, distributed behaviour signals.
+
+    Why: Broader coverage should produce stronger confidence classifications.
+    How: Compare medium/high distribution fixtures against expected confidence labels.
+    """
     medium_breakdown = {
         "dsm_fatigue": {"raw_event_count": 3, "journey_presence_count": 2},
         "dsm_distraction": {"raw_event_count": 2, "journey_presence_count": 2},
@@ -107,6 +132,11 @@ def test_compute_confidence_returns_medium_and_high_for_distribution_levels():
 
 
 def test_derive_primary_concerns_ranks_by_weighted_contribution_and_caps_to_three():
+    """What: Verify concern ranking uses weighted contributions and top-3 cap.
+
+    Why: Output concerns drive user-facing prioritization and must be deterministic.
+    How: Provide weighted breakdown and assert ordering plus max length.
+    """
     behaviour_breakdown = {
         "dsm_fatigue": {"raw_event_count": 3, "journey_presence_count": 2},      # 15
         "dsm_distraction": {"raw_event_count": 4, "journey_presence_count": 3},   # 16
@@ -123,6 +153,11 @@ def test_derive_primary_concerns_ranks_by_weighted_contribution_and_caps_to_thre
 
 
 def test_build_risk_profile_includes_model_version_and_deterministic_fields():
+    """What: Verify risk profile includes deterministic core fields and version.
+
+    Why: Consumers depend on stable schema and deterministic model metadata.
+    How: Build normalized sample rows and assert full profile outputs.
+    """
     normalized_data = [
         {
             "adasEventsCount": 1,

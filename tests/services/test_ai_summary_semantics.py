@@ -13,6 +13,7 @@ from tests.helpers.summary_semantic_assertions import (
 
 
 def _make_aggregated_payload(risk_profile: dict, behaviour_summary: dict, event_count: int = 3) -> dict:
+    """Build deterministic aggregated payload fixtures for semantic summary tests."""
     return {
         "driver": "Driver Test",
         "journey_count": 3,
@@ -23,12 +24,14 @@ def _make_aggregated_payload(risk_profile: dict, behaviour_summary: dict, event_
 
 
 def _patch_ai_summary(monkeypatch, summary_text: str):
+    """Patch AI client with deterministic response text for semantic assertions."""
     class FakeResponse:
         output_text = summary_text
 
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):
+            """Return deterministic mocked response for patched AI client calls."""
             return FakeResponse()
 
     class FakeClient:
@@ -39,6 +42,11 @@ def _patch_ai_summary(monkeypatch, summary_text: str):
 
 @pytest.mark.semantic
 def test_narrative_alignment_for_low_confidence_single_pattern(monkeypatch):
+    """What: Verify low-confidence single-pattern outputs stay cautious and aligned.
+
+    Why: Low-confidence risk profiles must avoid overconfident escalation language.
+    How: Patch model output, generate summary, and assert required/forbidden semantic constraints.
+    """
     output = "Seatbelt use is the primary concern in this limited pattern, so conclusions should remain cautious."
     _patch_ai_summary(monkeypatch, output)
 
@@ -69,6 +77,11 @@ def test_narrative_alignment_for_low_confidence_single_pattern(monkeypatch):
 
 @pytest.mark.semantic
 def test_narrative_alignment_for_high_risk_multi_category(monkeypatch):
+    """What: Verify high-risk multi-category outputs reflect strong coaching guidance.
+
+    Why: High-confidence multi-risk profiles should acknowledge multiple concern domains.
+    How: Patch output with multi-signal narrative and assert phrase/tone consistency checks.
+    """
     output = "There are clear fatigue and distraction signals with handheld-device events; targeted coaching intervention is recommended."
     _patch_ai_summary(monkeypatch, output)
 
@@ -98,6 +111,11 @@ def test_narrative_alignment_for_high_risk_multi_category(monkeypatch):
 
 @pytest.mark.semantic
 def test_hallucination_prevention_for_clean_driver(monkeypatch):
+    """What: Verify clean-driver narrative avoids hallucinated severe concerns.
+
+    Why: No-signal profiles should remain reassuring and non-escalatory.
+    How: Patch positive output and assert supportive tone with forbidden-risk phrase checks.
+    """
     output = "Overall the pattern appears safe and reassuring with no significant concerns observed in this period."
     _patch_ai_summary(monkeypatch, output)
 
@@ -127,6 +145,11 @@ def test_hallucination_prevention_for_clean_driver(monkeypatch):
 
 @pytest.mark.semantic
 def test_no_semantic_scoring_escalation_for_low_risk_low_confidence(monkeypatch):
+    """What: Verify semantic guards detect escalatory language for low-risk profiles.
+
+    Why: Regression protection is needed against unsafe overstatement in generated text.
+    How: Patch intentionally escalatory output and assert semantic validators raise errors.
+    """
     output = "This pattern is dangerous and clearly indicates high-risk behaviour requiring urgent intervention."
     _patch_ai_summary(monkeypatch, output)
 

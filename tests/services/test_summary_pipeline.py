@@ -446,6 +446,7 @@ def test_generate_driver_behaviour_summary_generates_and_stores_on_cache_miss(mo
     )
 
     def fake_store(cache_key, entry):
+        """Capture cache write payload for cache-miss generation assertions."""
         stored["cache_key"] = cache_key
         stored["entry"] = entry
 
@@ -576,6 +577,7 @@ def test_generate_fleet_summary_generates_and_stores_on_cache_miss(monkeypatch):
     monkeypatch.setattr(summary_pipeline, "generate_fleet_summary_text", lambda _data: "Generated fleet summary")
 
     def fake_set_fleet_summary_cache(cache_key, value):
+        """Capture fleet cache write payload for cache-miss generation assertions."""
         stored["cache_key"] = cache_key
         stored["value"] = value
         return {

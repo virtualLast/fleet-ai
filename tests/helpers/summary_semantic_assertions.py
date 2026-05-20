@@ -21,21 +21,25 @@ TONE_KEYWORDS = {
 
 
 def _normalized(text: str) -> str:
+    """Normalize free text for resilient semantic phrase matching."""
     return re.sub(r"\s+", " ", (text or "").strip().lower())
 
 
 def _contains_any(text: str, phrases: list[str]) -> bool:
+    """Return true when normalized text contains any normalized phrase candidate."""
     normalized_text = _normalized(text)
     return any(_normalized(phrase) in normalized_text for phrase in phrases if phrase)
 
 
 def assert_required_phrases(summary: str, required: list[str]) -> None:
+    """Assert that each required phrase/concept appears in the generated summary."""
     for phrase in required or []:
         if not _contains_any(summary, [phrase]):
             raise AssertionError(f"Missing required phrase/concept: {phrase}")
 
 
 def assert_preferred_phrases(summary: str, preferred: list[str]) -> list[str]:
+    """Return preferred phrases that are not present in the summary text."""
     missing = []
     for phrase in preferred or []:
         if not _contains_any(summary, [phrase]):
@@ -44,12 +48,14 @@ def assert_preferred_phrases(summary: str, preferred: list[str]) -> list[str]:
 
 
 def assert_forbidden_phrases(summary: str, forbidden: list[str]) -> None:
+    """Assert that forbidden phrase/concept tokens do not appear in the summary."""
     for phrase in forbidden or []:
         if _contains_any(summary, [phrase]):
             raise AssertionError(f"Forbidden phrase/concept present: {phrase}")
 
 
 def assert_required_concepts(summary: str, required_concepts: list[str]) -> None:
+    """Assert required semantic concepts using mapped phrase groups."""
     concept_checks = {
         "low_confidence_cautious": ["limited", "narrow", "cautious", "preliminary", "low confidence"],
         "single_pattern_acknowledged": ["single pattern", "single-pattern", "narrow pattern", "limited pattern"],
@@ -68,6 +74,7 @@ def assert_required_concepts(summary: str, required_concepts: list[str]) -> None
 
 
 def assert_summary_consistent_with_risk_profile(summary: str, risk_profile: dict) -> None:
+    """Assert summary wording is consistent with risk confidence/level metadata."""
     confidence = (risk_profile or {}).get("confidence")
     risk_level = (risk_profile or {}).get("risk_level")
     primary_concerns = (risk_profile or {}).get("primary_concerns") or []
@@ -84,6 +91,7 @@ def assert_summary_consistent_with_risk_profile(summary: str, risk_profile: dict
 
 
 def assert_behaviour_consistency(summary: str, behaviour_summary: dict, forbidden_when_absent: list[str]) -> None:
+    """Assert summary avoids behaviour references that have zero corresponding counts."""
     behaviour_to_count = {
         "fatigue": int((behaviour_summary or {}).get("fatigue_events", 0) or 0),
         "distraction": int((behaviour_summary or {}).get("distraction_events", 0) or 0),
@@ -102,6 +110,7 @@ def assert_behaviour_consistency(summary: str, behaviour_summary: dict, forbidde
 
 
 def assert_tones(summary: str, required_tones: list[str], forbidden_tones: list[str]) -> None:
+    """Assert required tonal cues are present and forbidden tones are absent."""
     for tone in required_tones or []:
         if tone not in TONE_KEYWORDS:
             continue

@@ -289,6 +289,105 @@ Fleet summary cache behavior:
 - Cache metadata (`generated_at`) is created by cache worker on write.
 - Fleet cache reads apply TTL filtering in cache worker (default 1 hour; configurable via `FLEET_SUMMARY_CACHE_TTL_SECONDS`).
 
+## Testing strategy
+
+### Architecture principle
+
+- The deterministic risk engine is the authoritative behavioural truth source.
+- The AI layer is a narrative/presentation transformation layer only.
+
+### Testing pyramid
+
+1. Deterministic unit tests
+   - risk engine logic,
+   - normalization,
+   - scoring,
+   - confidence rules.
+2. Contract/integration tests
+   - payload shape,
+   - prompt input contract,
+   - orchestration flow.
+3. Semantic regression tests (mocked AI)
+   - semantic assertion framework,
+   - anti-hallucination checks,
+   - severity/confidence consistency checks.
+4. Real-model prompt regression tests
+   - provider/model drift detection,
+   - prompt-quality verification,
+   - semantic boundaries only (never exact wording snapshots).
+
+### Golden datasets
+
+- Golden fixtures live in `tests/golden_datasets/input/` and `tests/golden_datasets/expectations/`.
+- Inputs are versioned with metadata (`dataset_version`, `scenario`, `description`, `purpose`, `data`).
+- Expectations are semantic-first (`required`, `preferred`, `forbidden`, concepts, tones, anti-hallucination constraints).
+- Exact-summary snapshot testing is intentionally prohibited.
+
+### Pytest marker strategy
+
+- `@pytest.mark.unit`
+  - deterministic pure-function tests.
+- `@pytest.mark.integration`
+  - orchestration and pipeline tests.
+- `@pytest.mark.semantic`
+  - mocked AI semantic validation tests.
+- `@pytest.mark.prompt_regression`
+  - real-model/provider regression tests.
+  - excluded from default CI runs.
+
+### Prompt regression policy
+
+- Prompt regressions must validate semantic boundaries only.
+- Runs append metadata (`provider`, `model`, `timestamp`, `dataset`, `summary_hash`) for drift investigation/auditability.
+- Prompt regressions are advisory quality:
+  - a single failing run is not an automatic release blocker,
+  - repeated semantic failures across runs/datasets indicate genuine drift and require investigation.
+
+### Known acceptable variability
+
+Acceptable:
+- synonym changes,
+- sentence ordering changes,
+- concise vs verbose wording,
+- coaching phrasing variation within semantic limits.
+
+Not acceptable:
+- hallucinated behaviours,
+- contradiction against deterministic risk/confidence,
+- unsupported intervention escalation,
+- invented behavioural categories,
+- risk-level contradiction.
+
+### Golden dataset governance
+
+- Add a new golden dataset only when it captures at least one of:
+  - real behavioural edge case,
+  - previously observed AI failure mode,
+  - new deterministic risk-engine rule,
+  - production issue reproduction,
+  - provider/model drift scenario.
+
+### Production incident backfill policy
+
+- Any production AI narrative failure/hallucination must be backfilled with:
+  1. a new golden dataset fixture,
+  2. a semantic expectation fixture,
+  3. a regression test preventing recurrence.
+
+### Risk model versioning
+
+Changes to any of the following must increment `RISK_MODEL_VERSION`:
+- behaviour weights,
+- threshold boundaries,
+- confidence logic,
+- primary concern derivation,
+- normalization rules that affect risk output.
+
+Version changes are expected to:
+- invalidate cached summaries,
+- require golden dataset expectation review,
+- trigger deterministic regression re-baselining.
+
 ## Running tests
 
 Run all tests:

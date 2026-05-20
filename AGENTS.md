@@ -265,3 +265,12 @@ At any point, the agent must halt and request clarification if:
 - Requirements are ambiguous or incomplete
 
 The agent must not guess or invent solutions without sufficient grounding in the codebase.
+
+## Project Guidelines
+
+### Writing tests
+
+Tests must be properly documented with three key elements:
+ - What is being tested
+ - Why we have this test
+ - How the test is structured

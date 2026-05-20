@@ -8,6 +8,11 @@ from services.ai_summary import (
 
 
 def test_is_zero_event_collection_returns_true_for_all_zero_counts():
+    """What: Confirm zero-event detector returns true for all-zero counters.
+
+    Why: Zero-event collections should use deterministic no-events summary paths.
+    How: Build a row with all ADAS/DSM counters at zero and assert predicate result.
+    """
     collection_data = [
         {
             "adasFcwCount": 0,
@@ -29,6 +34,11 @@ def test_is_zero_event_collection_returns_true_for_all_zero_counts():
 
 
 def test_is_zero_event_collection_returns_false_when_any_count_positive():
+    """What: Confirm zero-event detector rejects positive event counts.
+
+    Why: Any non-zero metric must route to normal summarization logic.
+    How: Build a row with one positive ADAS metric and assert predicate is false.
+    """
     collection_data = [
         {
             "adasFcwCount": 1,
@@ -50,6 +60,11 @@ def test_is_zero_event_collection_returns_false_when_any_count_positive():
 
 
 def test_build_zero_event_collection_summary_includes_driver_and_fleet_counts():
+    """What: Verify deterministic no-event summary includes aggregate counts.
+
+    Why: Users need explicit driver/fleet coverage context in fallback text.
+    How: Build mixed fleet rows, generate text, and assert expected count phrases.
+    """
     collection_data = [
         {"fleetLevelName": "North Depot"},
         {"fleetLevelName": "South Depot"},
@@ -64,12 +79,22 @@ def test_build_zero_event_collection_summary_includes_driver_and_fleet_counts():
 
 
 def test_generate_collection_summary_returns_empty_data_fallback():
+    """What: Verify collection summary returns empty-data fallback string.
+
+    Why: Empty inputs should not call external AI APIs.
+    How: Call generator with empty list and assert canonical fallback response.
+    """
     result = generate_collection_summary([])
 
     assert result == "No driver event data is available for this collection scope."
 
 
 def test_generate_collection_summary_returns_error_fallback_when_client_fails(monkeypatch):
+    """What: Verify collection summary handles OpenAI client failures.
+
+    Why: Service must degrade gracefully when upstream AI calls fail.
+    How: Monkeypatch client to raise in `responses.create` and assert error fallback text.
+    """
     collection_data = [
         {
             "fleetLevelName": "North Depot",
@@ -92,6 +117,7 @@ def test_generate_collection_summary_returns_error_fallback_when_client_fails(mo
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):
+            """Raise to emulate OpenAI transport/runtime failure."""
             raise RuntimeError("OpenAI unavailable")
 
     class FakeClient:
@@ -105,11 +131,21 @@ def test_generate_collection_summary_returns_error_fallback_when_client_fails(mo
 
 
 def test_generate_driver_behaviour_aggregated_summary_returns_empty_fallback_for_invalid_payload():
+    """What: Verify aggregated behaviour summary rejects invalid payload shapes.
+
+    Why: Invalid payloads should return deterministic fallback instead of raising.
+    How: Call with `{}` and list payloads, then assert canonical fallback text.
+    """
     assert generate_driver_behaviour_aggregated_summary({}) == "No driver behaviour data is available for this collection scope."
     assert generate_driver_behaviour_aggregated_summary([]) == "No driver behaviour data is available for this collection scope."
 
 
 def test_generate_driver_behaviour_aggregated_summary_returns_deterministic_zero_event_text():
+    """What: Verify zero-event behaviour payload produces deterministic narrative.
+
+    Why: Low-signal profiles should remain stable and not require model output.
+    How: Provide all-zero behaviour metrics and assert core narrative fragments.
+    """
     result = generate_driver_behaviour_aggregated_summary(
         {
             "driver_name": "David Price",
@@ -137,9 +173,15 @@ def test_generate_driver_behaviour_aggregated_summary_returns_deterministic_zero
 
 
 def test_generate_driver_behaviour_aggregated_summary_returns_error_fallback_when_client_fails(monkeypatch):
+    """What: Verify aggregated behaviour summary handles OpenAI failures.
+
+    Why: Driver summary endpoint must return safe fallback text on upstream errors.
+    How: Monkeypatch client `responses.create` to raise and assert error fallback.
+    """
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):
+            """Raise to emulate OpenAI transport/runtime failure."""
             raise RuntimeError("OpenAI unavailable")
 
     class FakeClient:
@@ -173,6 +215,11 @@ def test_generate_driver_behaviour_aggregated_summary_returns_error_fallback_whe
 
 
 def test_generate_driver_behaviour_aggregated_summary_sanitizes_prompt_payload(monkeypatch):
+    """What: Verify aggregated behaviour prompt data is sanitized and constrained.
+
+    Why: Prompt-injection and extra fields must not leak into model prompt input.
+    How: Capture outbound prompt via fake client and assert normalization/guardrail text.
+    """
     captured = {"input": None}
 
     class FakeResponse:
@@ -181,6 +228,7 @@ def test_generate_driver_behaviour_aggregated_summary_sanitizes_prompt_payload(m
     class FakeResponses:
         @staticmethod
         def create(**kwargs):
+            """Capture prompt input and return deterministic fake response."""
             captured["input"] = kwargs["input"]
             return FakeResponse()
 
@@ -224,14 +272,25 @@ def test_generate_driver_behaviour_aggregated_summary_sanitizes_prompt_payload(m
 
 
 def test_generate_fleet_summary_text_returns_empty_fallback_for_invalid_payload():
+    """What: Verify fleet summary returns fallback for invalid or empty inputs.
+
+    Why: Fleet summarization should fail-safe for malformed payload collections.
+    How: Call with empty and invalid list payloads and assert canonical fallback text.
+    """
     assert generate_fleet_summary_text([]) == "No fleet event data is available for this collection scope."
     assert generate_fleet_summary_text(["invalid"]) == "No fleet event data is available for this collection scope."
 
 
 def test_generate_fleet_summary_text_returns_error_fallback_when_client_fails(monkeypatch):
+    """What: Verify fleet summary generator returns error fallback on AI failures.
+
+    Why: Upstream AI outages should not propagate exceptions to callers.
+    How: Monkeypatch client call to raise and assert stable fallback error text.
+    """
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):
+            """Raise to emulate OpenAI transport/runtime failure."""
             raise RuntimeError("OpenAI unavailable")
 
     class FakeClient:
@@ -256,6 +315,11 @@ def test_generate_fleet_summary_text_returns_error_fallback_when_client_fails(mo
 
 
 def test_generate_fleet_summary_text_sanitizes_prompt_payload(monkeypatch):
+    """What: Verify fleet prompt payload is normalized and injection-safe.
+
+    Why: Prompt generation must strip unsafe fields and preserve fleet-level focus.
+    How: Capture prompt via fake client and assert sanitized/guardrail content.
+    """
     captured = {"input": None}
 
     class FakeResponse:
@@ -264,6 +328,7 @@ def test_generate_fleet_summary_text_sanitizes_prompt_payload(monkeypatch):
     class FakeResponses:
         @staticmethod
         def create(**kwargs):
+            """Capture prompt input and return deterministic fake response."""
             captured["input"] = kwargs["input"]
             return FakeResponse()
 

@@ -1,0 +1,153 @@
+import pytest
+
+from services import ai_summary
+from tests.helpers.summary_semantic_assertions import (
+    assert_behaviour_consistency,
+    assert_forbidden_phrases,
+    assert_preferred_phrases,
+    assert_required_concepts,
+    assert_required_phrases,
+    assert_summary_consistent_with_risk_profile,
+    assert_tones,
+)
+
+
+def _make_aggregated_payload(risk_profile: dict, behaviour_summary: dict, event_count: int = 3) -> dict:
+    return {
+        "driver": "Driver Test",
+        "journey_count": 3,
+        "event_count": event_count,
+        "risk_profile": risk_profile,
+        "behaviour_summary": behaviour_summary,
+    }
+
+
+def _patch_ai_summary(monkeypatch, summary_text: str):
+    class FakeResponse:
+        output_text = summary_text
+
+    class FakeResponses:
+        @staticmethod
+        def create(**_kwargs):
+            return FakeResponse()
+
+    class FakeClient:
+        responses = FakeResponses()
+
+    monkeypatch.setattr(ai_summary, "client", FakeClient())
+
+
+@pytest.mark.semantic
+def test_narrative_alignment_for_low_confidence_single_pattern(monkeypatch):
+    output = "Seatbelt use is the primary concern in this limited pattern, so conclusions should remain cautious."
+    _patch_ai_summary(monkeypatch, output)
+
+    payload = _make_aggregated_payload(
+        risk_profile={
+            "risk_level": "low",
+            "risk_score": 0.67,
+            "confidence": "low",
+            "primary_concerns": ["seatbelt"],
+        },
+        behaviour_summary={
+            "seatbelt_events": 6,
+            "fatigue_events": 0,
+            "distraction_events": 0,
+            "adas_events": 0,
+        },
+    )
+
+    summary = ai_summary.generate_driver_behaviour_aggregated_summary(payload)
+
+    assert_required_phrases(summary, ["seatbelt"])
+    assert_required_concepts(summary, ["low_confidence_cautious", "single_pattern_acknowledged"])
+    assert_forbidden_phrases(summary, ["dangerous driving", "high-risk behaviour", "aggressive driving"])
+    assert_summary_consistent_with_risk_profile(summary, payload["risk_profile"])
+    assert_behaviour_consistency(summary, payload["behaviour_summary"], ["fatigue", "distraction", "handheld_device", "smoking", "aggression"])
+    assert_tones(summary, ["cautious"], ["critical", "urgent"])
+
+
+@pytest.mark.semantic
+def test_narrative_alignment_for_high_risk_multi_category(monkeypatch):
+    output = "There are clear fatigue and distraction signals with handheld-device events; targeted coaching intervention is recommended."
+    _patch_ai_summary(monkeypatch, output)
+
+    payload = _make_aggregated_payload(
+        risk_profile={
+            "risk_level": "high",
+            "risk_score": 4.3,
+            "confidence": "high",
+            "primary_concerns": ["fatigue", "distraction", "handheld_device"],
+        },
+        behaviour_summary={
+            "seatbelt_events": 0,
+            "fatigue_events": 5,
+            "distraction_events": 4,
+            "adas_events": 3,
+        },
+    )
+
+    summary = ai_summary.generate_driver_behaviour_aggregated_summary(payload)
+
+    assert_required_phrases(summary, ["fatigue", "distraction"])
+    assert_required_concepts(summary, ["high_confidence_firm", "multi_risk_acknowledged"])
+    assert_tones(summary, ["coaching"], ["disciplinary"])
+    assert_behaviour_consistency(summary, payload["behaviour_summary"], ["smoking", "aggression"])
+    assert not assert_preferred_phrases(summary, ["coaching", "intervention"])
+
+
+@pytest.mark.semantic
+def test_hallucination_prevention_for_clean_driver(monkeypatch):
+    output = "Overall the pattern appears safe and reassuring with no significant concerns observed in this period."
+    _patch_ai_summary(monkeypatch, output)
+
+    payload = _make_aggregated_payload(
+        risk_profile={
+            "risk_level": "low",
+            "risk_score": 0.0,
+            "confidence": "low",
+            "primary_concerns": [],
+        },
+        behaviour_summary={
+            "seatbelt_events": 0,
+            "fatigue_events": 0,
+            "distraction_events": 0,
+            "adas_events": 0,
+        },
+        event_count=1,
+    )
+
+    summary = ai_summary.generate_driver_behaviour_aggregated_summary(payload)
+
+    assert_required_concepts(summary, ["positive_reassurance", "no_concerns"])
+    assert_forbidden_phrases(summary, ["dangerous", "high-risk behaviour", "missing data risk", "urgent intervention"])
+    assert_behaviour_consistency(summary, payload["behaviour_summary"], ["fatigue", "distraction", "handheld_device", "seatbelt", "smoking", "aggression"])
+    assert_tones(summary, ["supportive"], ["critical", "urgent", "disciplinary"])
+
+
+@pytest.mark.semantic
+def test_no_semantic_scoring_escalation_for_low_risk_low_confidence(monkeypatch):
+    output = "This pattern is dangerous and clearly indicates high-risk behaviour requiring urgent intervention."
+    _patch_ai_summary(monkeypatch, output)
+
+    payload = _make_aggregated_payload(
+        risk_profile={
+            "risk_level": "low",
+            "risk_score": 0.4,
+            "confidence": "low",
+            "primary_concerns": ["seatbelt"],
+        },
+        behaviour_summary={
+            "seatbelt_events": 4,
+            "fatigue_events": 0,
+            "distraction_events": 0,
+            "adas_events": 0,
+        },
+    )
+
+    summary = ai_summary.generate_driver_behaviour_aggregated_summary(payload)
+
+    with pytest.raises(AssertionError):
+        assert_summary_consistent_with_risk_profile(summary, payload["risk_profile"])
+    with pytest.raises(AssertionError):
+        assert_forbidden_phrases(summary, ["dangerous", "high-risk behaviour", "urgent intervention"]) 

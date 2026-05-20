@@ -4,11 +4,17 @@ from api.api import app
 
 
 def test_post_driver_behaviour_summary_returns_summary(monkeypatch):
+    """What: Verify driver behaviour endpoint returns pipeline summary payload.
+
+    Why: API contract must pass request data through and expose expected response schema.
+    How: Monkeypatch pipeline generator, call endpoint with valid payload, and assert status/body/captured args.
+    """
     client = TestClient(app)
 
     captured = {}
 
     def fake_generate_driver_behaviour_summary(collection_scope, data):
+        """Return a deterministic mocked driver behaviour summary payload."""
         captured["collection_scope"] = collection_scope
         captured["data"] = data
         return {
@@ -65,6 +71,11 @@ def test_post_driver_behaviour_summary_returns_summary(monkeypatch):
 
 
 def test_post_driver_behaviour_summary_returns_422_when_data_missing():
+    """What: Validate request without `data` is rejected.
+
+    Why: Endpoint requires non-empty collection rows for summary generation.
+    How: Post payload missing `data` and assert validation error status.
+    """
     client = TestClient(app)
 
     response = client.post("/ai/driver-behaviour-summary", json={"collection_scope": "scope-a"})
@@ -73,6 +84,11 @@ def test_post_driver_behaviour_summary_returns_422_when_data_missing():
 
 
 def test_post_driver_behaviour_summary_returns_422_when_data_empty():
+    """What: Validate request with empty `data` is rejected.
+
+    Why: Empty collections cannot produce a meaningful summary.
+    How: Post payload with `data=[]` and assert validation error status.
+    """
     client = TestClient(app)
     response = client.post(
         "/ai/driver-behaviour-summary",
@@ -83,6 +99,11 @@ def test_post_driver_behaviour_summary_returns_422_when_data_empty():
 
 
 def test_post_driver_behaviour_summary_returns_422_when_required_row_field_missing():
+    """What: Validate row-level required fields are enforced.
+
+    Why: Pipeline depends on mandatory row attributes for normalization and scoring.
+    How: Post one row missing required fields and assert validation error status.
+    """
     client = TestClient(app)
 
     response = client.post(
@@ -107,9 +128,15 @@ def test_post_driver_behaviour_summary_returns_422_when_required_row_field_missi
 
 
 def test_post_driver_behaviour_summary_returns_500_when_pipeline_fails(monkeypatch):
+    """What: Verify endpoint maps pipeline exceptions to HTTP 500.
+
+    Why: Unexpected service failures should produce a stable internal-error response contract.
+    How: Monkeypatch generator to raise and assert status code plus detail payload.
+    """
     client = TestClient(app)
 
     def fake_generate_driver_behaviour_summary(_collection_scope, _data):
+        """Raise an error to simulate pipeline failure."""
         raise RuntimeError("Unexpected failure")
 
     monkeypatch.setattr("api.api.generate_driver_behaviour_summary", fake_generate_driver_behaviour_summary)
@@ -138,11 +165,17 @@ def test_post_driver_behaviour_summary_returns_500_when_pipeline_fails(monkeypat
 
 
 def test_post_fleet_summary_returns_summary(monkeypatch):
+    """What: Verify fleet summary endpoint returns generator output.
+
+    Why: API should preserve fleet summary response schema and pass-through inputs.
+    How: Monkeypatch fleet generator, send valid payload, and assert status/body/captured args.
+    """
     client = TestClient(app)
 
     captured = {}
 
     def fake_generate_fleet_summary(collection_scope, data):
+        """Return a deterministic mocked fleet summary payload."""
         captured["collection_scope"] = collection_scope
         captured["data"] = data
         return {
@@ -191,6 +224,11 @@ def test_post_fleet_summary_returns_summary(monkeypatch):
 
 
 def test_post_fleet_summary_returns_422_when_data_missing():
+    """What: Validate fleet request without `data` is rejected.
+
+    Why: Endpoint cannot summarize a missing event collection.
+    How: Post payload lacking `data` and assert validation status.
+    """
     client = TestClient(app)
 
     response = client.post("/ai/fleet-summary", json={"collection_scope": "scope-a"})
@@ -199,6 +237,11 @@ def test_post_fleet_summary_returns_422_when_data_missing():
 
 
 def test_post_fleet_summary_returns_422_when_data_empty():
+    """What: Validate fleet request with empty `data` is rejected.
+
+    Why: Empty fleet collections are invalid for summary generation.
+    How: Post payload with `data=[]` and assert validation status.
+    """
     client = TestClient(app)
     response = client.post(
         "/ai/fleet-summary",
@@ -209,9 +252,15 @@ def test_post_fleet_summary_returns_422_when_data_empty():
 
 
 def test_post_fleet_summary_returns_500_when_pipeline_fails(monkeypatch):
+    """What: Verify fleet endpoint returns HTTP 500 when pipeline fails.
+
+    Why: Error translation must remain stable for downstream consumers.
+    How: Monkeypatch fleet generator to raise and assert internal error response payload.
+    """
     client = TestClient(app)
 
     def fake_generate_fleet_summary(_collection_scope, _data):
+        """Raise an error to simulate fleet pipeline failure."""
         raise RuntimeError("Unexpected failure")
 
     monkeypatch.setattr("api.api.generate_fleet_summary", fake_generate_fleet_summary)

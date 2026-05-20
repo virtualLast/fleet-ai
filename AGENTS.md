@@ -1,9 +1,10 @@
 # AGENTS.md
 
-This file provides context and instructions for AI coding agents working on this project
+This file provides context and instructions for AI coding agents working on this project.
 
+---
 
-## Build Workflow (Mandatory Multi-Phase Execution)
+# Build Workflow (Mandatory Multi-Phase Execution)
 
 All agents must follow this workflow when implementing any change.
 No phase may be skipped. Progression between phases is gated.
@@ -145,115 +146,141 @@ Execute the TODO plan safely and incrementally.
 ## 6. Code Review & Summary Phase (CodeRabbit Enforced)
 
 **Objective:**  
-Perform an automated code review using CodeRabbit CLI, resolve issues, and produce a verified final summary.
+Perform iterative automated code review using CodeRabbit CLI, resolve actionable findings, and produce a verified final implementation summary.
 
-### 6.1 Generate Review Output
+### 6.1 Review Output Location (MANDATORY)
+
+All CodeRabbit review outputs must be written to:
+
+```text
+documentation/review/
+```
+
+Review files must NEVER be overwritten.
+
+Each review pass must create a new file using the format:
+
+```text
+<task-name>-review-<number>.txt
+```
+
+Example:
+
+```text
+documentation/review/fleet-risk-summary-review-1.txt
+documentation/review/fleet-risk-summary-review-2.txt
+documentation/review/fleet-risk-summary-review-3.txt
+```
+
+The review number must increment for every CodeRabbit execution within the task lifecycle.
+
+---
+
+### 6.2 Generate Initial Review
 
 The agent must run:
 
 ```bash
-cr --plain --base dev > review_actions.txt
+cr --plain --base <target-branch> > documentation/review/<task-name>-review-1.txt
 ```
-
-**Requirements:**
-- The command must be executed after all TODO steps are complete
-- The output must be saved to:
-  review_actions.txt
 
 ---
 
-### 6.2 Process Review Feedback (MANDATORY ITERATION)
+### 6.3 Process Review Feedback (MANDATORY ITERATION)
 
 The agent must:
 
-1. Read and analyse all items in `review_actions.txt`
-2. Categorise findings:
-    - Bugs / correctness issues
-    - Code quality issues
-    - Style / consistency issues
-    - Suggestions / improvements
+1. Read and analyse all review findings
+2. Categorise findings into:
+   - Bugs / correctness issues
+   - Security concerns
+   - Performance concerns
+   - Code quality issues
+   - Style / consistency issues
+   - Suggestions / maintainability improvements
+3. Determine which findings are:
+   - Actionable
+   - Non-actionable
+   - False positives
+   - Requiring developer decision
 
 ---
 
-### 6.3 Apply Fixes
+### 6.4 Apply Fixes
 
-- All actionable issues must be resolved
-- Changes must follow the same rules as the Action Phase:
-    - Make small, controlled updates
-    - Run test suite after each logical fix group
-    - Ensure all tests pass before continuing
+The agent must:
+
+- Resolve all actionable issues
+- Preserve behavioural correctness
+- Avoid introducing speculative refactors
+- Run relevant tests after each logical fix group
 
 ---
 
-### 6.4 Re-Run Review (Loop Until Clean)
+### 6.5 Re-Run Review (MANDATORY LOOP)
 
-After applying fixes, the agent must re-run:
+After fixes are applied, the agent must generate a new review file:
 
 ```bash
-cr --plain --base dev > review_actions.txt
+cr --plain --base <target-branch> > documentation/review/<task-name>-review-<next-number>.txt
 ```
 
-**Iteration Rule:**
-- This process must repeat until:
-    - No critical or high-impact issues remain  
-      OR
-    - Remaining issues are explicitly documented and justified
+The review/fix cycle must continue until one of the following is true:
+
+- No actionable findings remain
+- Remaining findings are explicitly classified as:
+  - Accepted risk
+  - False positive
+  - Requires developer decision
+
+The agent must NEVER overwrite previous review files.
+
+The agent must NEVER claim a review is clean without re-running CodeRabbit after the final code changes.
 
 ---
 
-### 6.5 Handling Unresolved Items
+### 6.6 Handling Unresolved Findings
 
-If any review items are not addressed, the agent must:
+If unresolved findings remain, the agent must explicitly document:
 
-- Explicitly list them
-- Provide justification for deferring them
-- Mark them as:
-    - Accepted risk, or
-    - Requires developer decision
+- The finding
+- Why it was not addressed
+- Associated risk
+- Whether developer input is required
 
----
-
-### 6.6 Final Validation
-
-Before completing the phase:
-- Run full test suite
-- Confirm all tests are passing
+Unresolved findings must appear in the final summary.
 
 ---
 
-### 6.7 Final Summary Output
+### 6.7 Final Validation
 
-Provide a clear summary including:
+Before completing the phase, the agent must:
+
+- Run the full test suite
+- Confirm all tests pass
+- Confirm no new linting/type issues were introduced
+- Confirm review outputs were persisted correctly
+
+---
+
+### 6.8 Final Summary Output
+
+Provide a final implementation summary including:
+
 - Files changed
-- Key fixes applied from CodeRabbit feedback
-- Number and type of issues resolved
-- Any remaining issues and justification
-- Confirmation that:
-    - Tests are passing
-    - CodeRabbit review has been completed
+- Key fixes applied
+- Review iterations performed
+- Review files generated
+- Issues resolved
+- Remaining unresolved findings
+- Test results
+- Final implementation status
 
 ---
 
 ## 7. Documentation Requirement for New Code (Mandatory)
 
-Whenever an agent adds or changes implementation code, documentation must be
-updated in the same task.
-
-**Requirements:**
-- Add or update inline documentation for modified logic:
-  - Function/method docstrings for public behavior
-  - Class/module docstrings where needed for context
-  - Concise inline comments for non-obvious logic
-- Keep documentation accurate and behavior-aligned:
-  - Comments must describe current behavior (not intended/future behavior)
-  - Outdated comments must be corrected or removed
-- Update user-facing docs when behavior/contracts change:
-  - `README.md` for setup, run flow, API routes/payloads, or config changes
-  - Include runnable examples where practical
-
-**Validation Rule:**
-- A task is not complete until both code and related documentation changes are
-  present and reviewed.
+Whenever an agent adds or changes implementation code, documentation must also be updated.
 
 ---
 
@@ -264,7 +291,8 @@ At any point, the agent must halt and request clarification if:
 - The request conflicts with existing architecture
 - Requirements are ambiguous or incomplete
 
-The agent must not guess or invent solutions without sufficient grounding in the codebase.
+---
+
 
 ## Project Guidelines
 

@@ -1,0 +1,28 @@
+{
+  "risk": {
+    "risk_level": "low",
+    "confidence": "low",
+    "primary_concerns_empty": true
+  },
+  "semantic": {
+    "required": ["no tracked", "routine monitoring"],
+    "preferred": ["reassuring", "positive"],
+    "forbidden": [
+      "dangerous",
+      "high-risk behaviour",
+      "urgent intervention",
+      "missing data risk"
+    ],
+    "required_concepts": ["positive_reassurance", "no_concerns"],
+    "required_tones": ["supportive"],
+    "forbidden_tones": ["critical", "urgent", "disciplinary"],
+    "forbidden_behaviour_mentions_when_absent": [
+      "fatigue",
+      "distraction",
+      "handheld_device",
+      "seatbelt",
+      "smoking",
+      "aggression"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "dataset_version": "v1",
+  "scenario": "clean-driver-no-events",
+  "description": "Driver with zero behavioural events across all observed journeys.",
+  "purpose": "Prevents concern hallucinations when deterministic behaviour signals are absent.",
+  "data": [
+    {
+      "id": 3001,
+      "driverId": 503,
+      "entityName": "Driver C",
+      "startTime": "2026-05-01T07:00:00Z",
+      "endTime": "2026-05-01T07:30:00Z",
+      "adasEventsCount": 0,
+      "dsmFatigueCount": 0,
+      "dsmDistractionCount": 0,
+      "dsmHandheldDevicesCount": 0,
+      "dsmSeatbeltCount": 0,
+      "dsmSmokingCount": 0
+    },
+    {
+      "id": 3002,
+      "driverId": 503,
+      "entityName": "Driver C",
+      "startTime": "2026-05-02T07:00:00Z",
+      "endTime": "2026-05-02T07:20:00Z",
+      "adasEventsCount": 0,
+      "dsmFatigueCount": 0,
+      "dsmDistractionCount": 0,
+      "dsmHandheldDevicesCount": 0,
+      "dsmSeatbeltCount": 0,
+      "dsmSmokingCount": 0
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "dataset_version": "v1",
+  "scenario": "repetitive-seatbelt-low-confidence",
+  "description": "Repeated seatbelt-only events with narrow behavioural scope.",
+  "purpose": "Prevents low-confidence narrow datasets from escalating into severe-risk narratives.",
+  "data": [
+    {
+      "id": 1001,
+      "driverId": 501,
+      "entityName": "Driver A",
+      "startTime": "2026-05-01T08:00:00Z",
+      "endTime": "2026-05-01T08:30:00Z",
+      "adasEventsCount": 0,
+      "dsmFatigueCount": 0,
+      "dsmDistractionCount": 0,
+      "dsmHandheldDevicesCount": 0,
+      "dsmSeatbeltCount": 3,
+      "dsmSmokingCount": 0
+    },
+    {
+      "id": 1002,
+      "driverId": 501,
+      "entityName": "Driver A",
+      "startTime": "2026-05-02T08:00:00Z",
+      "endTime": "2026-05-02T08:35:00Z",
+      "adasEventsCount": 0,
+      "dsmFatigueCount": 0,
+      "dsmDistractionCount": 0,
+      "dsmHandheldDevicesCount": 0,
+      "dsmSeatbeltCount": 2,
+      "dsmSmokingCount": 0
+    },
+    {
+      "id": 1003,
+      "driverId": 501,
+      "entityName": "Driver A",
+      "startTime": "2026-05-03T08:00:00Z",
+      "endTime": "2026-05-03T08:25:00Z",
+      "adasEventsCount": 0,
+      "dsmFatigueCount": 0,
+      "dsmDistractionCount": 0,
+      "dsmHandheldDevicesCount": 0,
+      "dsmSeatbeltCount": 1,
+      "dsmSmokingCount": 0
+    }
+  ]
+}

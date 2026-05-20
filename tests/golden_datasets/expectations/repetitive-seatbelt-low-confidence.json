@@ -1,0 +1,27 @@
+{
+  "risk": {
+    "risk_level_allowed": ["low", "medium"],
+    "confidence": "low",
+    "primary_concerns_contains": ["seatbelt"]
+  },
+  "semantic": {
+    "required": ["seatbelt"],
+    "preferred": ["narrow", "limited"],
+    "forbidden": [
+      "dangerous driving",
+      "high-risk behaviour",
+      "aggressive driving",
+      "urgent intervention"
+    ],
+    "required_concepts": ["low_confidence_cautious", "single_pattern_acknowledged"],
+    "required_tones": ["cautious"],
+    "forbidden_tones": ["critical", "urgent"],
+    "forbidden_behaviour_mentions_when_absent": [
+      "fatigue",
+      "distraction",
+      "handheld_device",
+      "smoking",
+      "aggression"
+    ]
+  }
+}

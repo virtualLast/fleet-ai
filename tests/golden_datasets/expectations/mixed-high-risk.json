@@ -1,0 +1,22 @@
+{
+  "risk": {
+    "risk_level": "high",
+    "confidence": "high",
+    "primary_concerns_contains": ["fatigue", "distraction"]
+  },
+  "semantic": {
+    "required": ["fatigue", "distraction"],
+    "preferred": ["coaching", "intervention"],
+    "forbidden": [
+      "aggressive driving",
+      "road rage"
+    ],
+    "required_concepts": ["high_confidence_firm", "multi_risk_acknowledged"],
+    "required_tones": ["coaching"],
+    "forbidden_tones": ["disciplinary"],
+    "forbidden_behaviour_mentions_when_absent": [
+      "smoking",
+      "aggression"
+    ]
+  }
+}

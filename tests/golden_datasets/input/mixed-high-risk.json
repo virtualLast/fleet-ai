@@ -1,0 +1,47 @@
+{
+  "dataset_version": "v1",
+  "scenario": "mixed-high-risk",
+  "description": "Fatigue, distraction, and handheld-device events across multiple journeys.",
+  "purpose": "Ensures high-severity multi-category behaviour remains high-risk and confidence stays high.",
+  "data": [
+    {
+      "id": 2001,
+      "driverId": 502,
+      "entityName": "Driver B",
+      "startTime": "2026-05-01T10:00:00Z",
+      "endTime": "2026-05-01T10:40:00Z",
+      "adasEventsCount": 2,
+      "dsmFatigueCount": 2,
+      "dsmDistractionCount": 1,
+      "dsmHandheldDevicesCount": 1,
+      "dsmSeatbeltCount": 0,
+      "dsmSmokingCount": 0
+    },
+    {
+      "id": 2002,
+      "driverId": 502,
+      "entityName": "Driver B",
+      "startTime": "2026-05-02T11:00:00Z",
+      "endTime": "2026-05-02T11:30:00Z",
+      "adasEventsCount": 1,
+      "dsmFatigueCount": 1,
+      "dsmDistractionCount": 2,
+      "dsmHandheldDevicesCount": 1,
+      "dsmSeatbeltCount": 0,
+      "dsmSmokingCount": 0
+    },
+    {
+      "id": 2003,
+      "driverId": 502,
+      "entityName": "Driver B",
+      "startTime": "2026-05-03T09:00:00Z",
+      "endTime": "2026-05-03T09:45:00Z",
+      "adasEventsCount": 1,
+      "dsmFatigueCount": 1,
+      "dsmDistractionCount": 1,
+      "dsmHandheldDevicesCount": 2,
+      "dsmSeatbeltCount": 0,
+      "dsmSmokingCount": 0
+    }
+  ]
+}

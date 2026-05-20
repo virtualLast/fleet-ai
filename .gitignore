@@ -4,6 +4,8 @@ documentation/research/*
 !documentation/research/.gitkeep
 documentation/todo/*
 !documentation/todo/.gitkeep
+documentation/review/*
+!documentation/review/.gitkeep
 .env
 cache/summary_cache.json
 cache/event-collection-summary.json

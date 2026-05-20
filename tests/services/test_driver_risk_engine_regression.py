@@ -38,7 +38,7 @@ def test_risk_score_stability_for_identical_datasets():
 
     assert profile_a["risk_score"] == profile_b["risk_score"]
     assert profile_a["risk_level"] == profile_b["risk_level"]
-    assert profile_a["confidence"] == profile_b["confidence"]
+    assert profile_a["assessment_confidence"] == profile_b["assessment_confidence"]
 
 
 def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repetition():
@@ -77,8 +77,8 @@ def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repe
     assert high_profile["risk_level"] in {"medium", "high"}
 
 
-def test_concentration_rule_stability_single_category_dominance_yields_low_confidence():
-    """What: Verify single-category dominance yields low confidence classification.
+def test_concentration_rule_stability_single_category_dominance_yields_low_assessment_confidence():
+    """What: Verify single-category dominance yields low assessment confidence classification.
 
     Why: Narrow behaviour concentration should be flagged as lower-confidence evidence.
     How: Build seatbelt-dominant dataset and assert confidence/concerns outputs.
@@ -104,7 +104,7 @@ def test_concentration_rule_stability_single_category_dominance_yields_low_confi
 
     profile = DriverRiskEngine.build_risk_profile(dominant_single_category)
 
-    assert profile["confidence"] == "low"
+    assert profile["assessment_confidence"] == "low"
     assert profile["primary_concerns"] == ["seatbelt"]
 
 

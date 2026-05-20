@@ -201,11 +201,11 @@ def _build_zero_event_driver_behaviour_summary(aggregated_payload: dict) -> str:
     journey_count = aggregated_payload.get("journey_count", 0)
     risk_profile = aggregated_payload.get("risk_profile", {})
     risk_level = risk_profile.get("risk_level", "low")
-    confidence = risk_profile.get("confidence", "low")
+    assessment_confidence = risk_profile.get("assessment_confidence", "low")
 
     return (
         f"{driver_name} completed {journey_count} journeys with no tracked ADAS or DSM events. "
-        f"The deterministic risk engine assessed overall risk as {risk_level} with {confidence} confidence. "
+        f"The deterministic risk engine assessed overall risk as {risk_level} with {assessment_confidence} assessment confidence. "
         "Continue routine monitoring to maintain this standard."
     )
 

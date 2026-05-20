@@ -350,7 +350,7 @@ def test_aggregate_driver_behaviour_payload_returns_risk_profile_and_behaviour_s
         "model_version": "v1",
         "risk_level": "high",
         "risk_score": 5.5,
-        "confidence": "medium",
+        "assessment_confidence": "medium",
         "primary_concerns": ["fatigue", "distraction", "seatbelt"],
         "requires_intervention": True,
     }
@@ -375,7 +375,7 @@ def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
             "model_version": "v1",
             "risk_level": "low",
             "risk_score": 0.0,
-            "confidence": "low",
+            "assessment_confidence": "low",
             "primary_concerns": [],
             "requires_intervention": False,
         },

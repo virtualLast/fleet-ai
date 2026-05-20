@@ -54,7 +54,7 @@ def test_narrative_alignment_for_low_confidence_single_pattern(monkeypatch):
         risk_profile={
             "risk_level": "low",
             "risk_score": 0.67,
-            "confidence": "low",
+            "assessment_confidence": "low",
             "primary_concerns": ["seatbelt"],
         },
         behaviour_summary={
@@ -89,7 +89,7 @@ def test_narrative_alignment_for_high_risk_multi_category(monkeypatch):
         risk_profile={
             "risk_level": "high",
             "risk_score": 4.3,
-            "confidence": "high",
+            "assessment_confidence": "high",
             "primary_concerns": ["fatigue", "distraction", "handheld_device"],
         },
         behaviour_summary={
@@ -123,7 +123,7 @@ def test_hallucination_prevention_for_clean_driver(monkeypatch):
         risk_profile={
             "risk_level": "low",
             "risk_score": 0.0,
-            "confidence": "low",
+            "assessment_confidence": "low",
             "primary_concerns": [],
         },
         behaviour_summary={
@@ -157,7 +157,7 @@ def test_no_semantic_scoring_escalation_for_low_risk_low_confidence(monkeypatch)
         risk_profile={
             "risk_level": "low",
             "risk_score": 0.4,
-            "confidence": "low",
+            "assessment_confidence": "low",
             "primary_concerns": ["seatbelt"],
         },
         behaviour_summary={

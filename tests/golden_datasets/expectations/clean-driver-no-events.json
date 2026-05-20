@@ -1,7 +1,7 @@
 {
   "risk": {
     "risk_level": "low",
-    "confidence": "low",
+    "assessment_confidence": "low",
     "primary_concerns_empty": true
   },
   "semantic": {

@@ -92,8 +92,8 @@ def test_driver_summary_golden_dataset_flow(monkeypatch, scenario: str, mocked_s
         assert risk_profile["risk_level"] == risk_expectation["risk_level"]
     if "risk_level_allowed" in risk_expectation:
         assert risk_profile["risk_level"] in set(risk_expectation["risk_level_allowed"])
-    if "confidence" in risk_expectation:
-        assert risk_profile["confidence"] == risk_expectation["confidence"]
+    if "assessment_confidence" in risk_expectation:
+        assert risk_profile["assessment_confidence"] == risk_expectation["assessment_confidence"]
 
     for concern in risk_expectation.get("primary_concerns_contains", []):
         assert concern in risk_profile["primary_concerns"]

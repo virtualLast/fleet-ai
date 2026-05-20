@@ -75,12 +75,12 @@ def assert_required_concepts(summary: str, required_concepts: list[str]) -> None
 
 def assert_summary_consistent_with_risk_profile(summary: str, risk_profile: dict) -> None:
     """Assert summary wording is consistent with risk confidence/level metadata."""
-    confidence = (risk_profile or {}).get("confidence")
+    confidence = (risk_profile or {}).get("assessment_confidence")
     risk_level = (risk_profile or {}).get("risk_level")
     primary_concerns = (risk_profile or {}).get("primary_concerns") or []
 
     if confidence == "low":
-        if not _contains_any(summary, ["low confidence", "limited", "cautious", "preliminary", "narrow"]):
+        if not _contains_any(summary, ["low confidence", "low assessment confidence", "limited", "cautious", "preliminary", "narrow"]):
             raise AssertionError("Low-confidence profile requires cautious/uncertain wording")
 
     if risk_level == "low":

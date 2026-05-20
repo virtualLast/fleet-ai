@@ -324,10 +324,10 @@ def _sanitize_aggregated_behaviour_payload(aggregated_payload: dict) -> dict:
     if risk_level not in {"low", "medium", "high"}:
         risk_level = "low"
 
-    confidence = _safe_text(risk_profile.get("confidence", "low"), default="low", max_len=20).lower()
+    assessment_confidence = _safe_text(risk_profile.get("assessment_confidence", "low"), default="low", max_len=20).lower()
 
-    if confidence not in {"low", "medium", "high"}:
-        confidence = "low"
+    if assessment_confidence not in {"low", "medium", "high"}:
+        assessment_confidence = "low"
 
     return {
         "driver_name": _safe_text(aggregated_payload.get("driver_name", "unknown")),
@@ -337,7 +337,7 @@ def _sanitize_aggregated_behaviour_payload(aggregated_payload: dict) -> dict:
             "model_version": _safe_text(risk_profile.get("model_version", "v1"), default="v1", max_len=40),
             "risk_level": risk_level,
             "risk_score": _safe_float(risk_profile.get("risk_score", 0.0), 0.0),
-            "confidence": confidence,
+            "assessment_confidence": assessment_confidence,
             "primary_concerns": [_safe_text(concern, default="unknown", max_len=60) for concern in raw_primary_concerns[:3]],
             "requires_intervention": bool(risk_profile.get("requires_intervention", False)),
         },
@@ -369,7 +369,7 @@ def generate_driver_behaviour_aggregated_summary(aggregated_payload: dict) -> st
     if event_count <= 0:
         return (
             f"{driver_name} completed {journey_count} journeys with no tracked ADAS or DSM events. "
-            f"The deterministic risk profile is {risk_profile['risk_level']} with {risk_profile['confidence']} confidence. "
+            f"The deterministic risk profile is {risk_profile['risk_level']} with {risk_profile['assessment_confidence']} assessment confidence. "
             "Continue routine monitoring to maintain this standard."
         )
 
@@ -390,7 +390,7 @@ Rules:
 - Describe behaviour patterns in plain English using only the provided `behaviour_summary` fields.
 - Explain the provided `risk_profile.risk_level` and `risk_profile.risk_score` in narrative form.
 - Include one coaching recommendation tailored to `primary_concerns`.
-- If `risk_profile.confidence` is `low`, explicitly acknowledge uncertainty and ambiguity.
+- If `risk_profile.assessment_confidence` is `low`, explicitly acknowledge uncertainty and ambiguity.
 - Do not infer severity from raw event counts.
 - Do not compute or override risk scoring.
 - Do not introduce behavioural categories not present in input.

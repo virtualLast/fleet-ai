@@ -155,7 +155,7 @@ def test_generate_driver_behaviour_aggregated_summary_returns_deterministic_zero
                 "model_version": "v1",
                 "risk_level": "low",
                 "risk_score": 0.0,
-                "confidence": "low",
+                "assessment_confidence": "low",
                 "primary_concerns": ["seatbelt"],
                 "requires_intervention": False,
             },
@@ -169,7 +169,7 @@ def test_generate_driver_behaviour_aggregated_summary_returns_deterministic_zero
     )
 
     assert "David Price completed 7 journeys" in result
-    assert "deterministic risk profile is low with low confidence" in result
+    assert "deterministic risk profile is low with low assessment confidence" in result
 
 
 def test_generate_driver_behaviour_aggregated_summary_returns_error_fallback_when_client_fails(monkeypatch):
@@ -198,7 +198,7 @@ def test_generate_driver_behaviour_aggregated_summary_returns_error_fallback_whe
                 "model_version": "v1",
                 "risk_level": "medium",
                 "risk_score": 1.4,
-                "confidence": "medium",
+                "assessment_confidence": "medium",
                 "primary_concerns": ["seatbelt"],
                 "requires_intervention": False,
             },
@@ -246,7 +246,7 @@ def test_generate_driver_behaviour_aggregated_summary_sanitizes_prompt_payload(m
                 "model_version": "v1",
                 "risk_level": "low",
                 "risk_score": "0.9",
-                "confidence": "low",
+                "assessment_confidence": "low",
                 "primary_concerns": ["seatbelt", "fatigue"],
                 "requires_intervention": False,
                 "extra_risk_field": "should_not_be_used",
@@ -267,7 +267,7 @@ def test_generate_driver_behaviour_aggregated_summary_sanitizes_prompt_payload(m
     assert "Do not compute or override risk scoring." in captured["input"]
     assert "Do not introduce behavioural categories not present in input." in captured["input"]
     assert "Only use provided `risk_profile` and `behaviour_summary` fields." in captured["input"]
-    assert "If `risk_profile.confidence` is `low`, explicitly acknowledge uncertainty and ambiguity." in captured["input"]
+    assert "If `risk_profile.assessment_confidence` is `low`, explicitly acknowledge uncertainty and ambiguity." in captured["input"]
     assert '"risk_level": "low"' in captured["input"]
 
 

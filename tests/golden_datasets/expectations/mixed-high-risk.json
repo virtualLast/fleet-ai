@@ -1,7 +1,7 @@
 {
   "risk": {
     "risk_level": "high",
-    "confidence": "high",
+    "assessment_confidence": "high",
     "primary_concerns_contains": ["fatigue", "distraction"]
   },
   "semantic": {

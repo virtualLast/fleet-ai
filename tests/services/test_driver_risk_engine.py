@@ -77,8 +77,8 @@ def test_classify_risk_level_uses_expected_boundaries():
     assert DriverRiskEngine.classify_risk_level(3.0) == "high"
 
 
-def test_compute_confidence_applies_single_signal_and_dominance_rules():
-    """What: Verify confidence drops for single-signal and dominant-pattern inputs.
+def test_compute_assessment_confidence_applies_single_signal_and_dominance_rules():
+    """What: Verify assessment confidence drops for single-signal and dominant-pattern inputs.
 
     Why: Narrow evidence profiles should be communicated with uncertainty.
     How: Build sparse/dominant breakdowns and assert low confidence outputs.
@@ -100,12 +100,12 @@ def test_compute_confidence_applies_single_signal_and_dominance_rules():
         "dsm_smoking": {"raw_event_count": 0, "journey_presence_count": 0},
     }
 
-    assert DriverRiskEngine.compute_confidence(10, single_signal_breakdown) == "low"
-    assert DriverRiskEngine.compute_confidence(10, dominant_signal_breakdown) == "low"
+    assert DriverRiskEngine.compute_assessment_confidence(10, single_signal_breakdown) == "low"
+    assert DriverRiskEngine.compute_assessment_confidence(10, dominant_signal_breakdown) == "low"
 
 
-def test_compute_confidence_returns_medium_and_high_for_distribution_levels():
-    """What: Verify confidence increases with broader, distributed behaviour signals.
+def test_compute_assessment_confidence_returns_medium_and_high_for_distribution_levels():
+    """What: Verify assessment confidence increases with broader, distributed behaviour signals.
 
     Why: Broader coverage should produce stronger confidence classifications.
     How: Compare medium/high distribution fixtures against expected confidence labels.
@@ -127,8 +127,8 @@ def test_compute_confidence_returns_medium_and_high_for_distribution_levels():
         "dsm_smoking": {"raw_event_count": 1, "journey_presence_count": 1},
     }
 
-    assert DriverRiskEngine.compute_confidence(8, medium_breakdown) == "medium"
-    assert DriverRiskEngine.compute_confidence(10, high_breakdown) == "high"
+    assert DriverRiskEngine.compute_assessment_confidence(8, medium_breakdown) == "medium"
+    assert DriverRiskEngine.compute_assessment_confidence(10, high_breakdown) == "high"
 
 
 def test_derive_primary_concerns_ranks_by_weighted_contribution_and_caps_to_three():
@@ -182,6 +182,6 @@ def test_build_risk_profile_includes_model_version_and_deterministic_fields():
     assert profile["model_version"] == "v1"
     assert profile["risk_level"] == "high"
     assert profile["risk_score"] == 20.0
-    assert profile["confidence"] == "high"
+    assert profile["assessment_confidence"] == "high"
     assert profile["requires_intervention"] is True
     assert profile["primary_concerns"] == ["fatigue", "adas", "distraction"]

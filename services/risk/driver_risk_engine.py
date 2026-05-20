@@ -8,7 +8,7 @@ class DriverRiskEngine:
     - behaviour breakdown computation
     - weighted risk scoring
     - risk level classification
-    - confidence scoring
+    - assessment confidence scoring
     - primary concern derivation
     - risk profile construction
     """
@@ -137,8 +137,8 @@ class DriverRiskEngine:
         return contributions
 
     @classmethod
-    def compute_confidence(cls, journey_count: int, behaviour_breakdown: dict) -> str:
-        """Return deterministic confidence from signal diversity and concentration.
+    def compute_assessment_confidence(cls, journey_count: int, behaviour_breakdown: dict) -> str:
+        """Return deterministic assessment confidence from signal diversity and concentration.
 
         Dominance rule:
         A category is dominant when
@@ -197,14 +197,14 @@ class DriverRiskEngine:
         behaviour_breakdown = cls.compute_behaviour_breakdown(normalized_data if isinstance(normalized_data, list) else [])
         risk_score = cls.calculate_weighted_risk_score(behaviour_breakdown, journey_count)
         risk_level = cls.classify_risk_level(risk_score)
-        confidence = cls.compute_confidence(journey_count, behaviour_breakdown)
+        assessment_confidence = cls.compute_assessment_confidence(journey_count, behaviour_breakdown)
         primary_concerns = cls.derive_primary_concerns(behaviour_breakdown)
 
         return {
             "model_version": cls.RISK_MODEL_VERSION,
             "risk_level": risk_level,
             "risk_score": risk_score,
-            "confidence": confidence,
+            "assessment_confidence": assessment_confidence,
             "primary_concerns": primary_concerns,
             "requires_intervention": risk_level == "high",
         }

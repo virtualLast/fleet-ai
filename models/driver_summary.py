@@ -95,6 +95,102 @@ class DriverBehaviourSummary(BaseModel):
     summary: str
 
 
+class AssessmentConfidenceDerivedFrom(BaseModel):
+    """Represent deterministic evidence dimensions used to derive assessment confidence."""
+
+    journey_volume: str | None = None
+    event_volume: str | None = None
+    event_diversity: str | None = None
+    behavioural_distribution: str | None = None
+    observation_coverage: str | None = None
+    observation_window_days: int | None = None
+    observation_duration: str | None = None
+    driver_volume: str | None = None
+
+
+class AssessmentConfidence(BaseModel):
+    """Store deterministic assessment confidence and supporting evidence factors."""
+
+    level: str
+    derived_from: AssessmentConfidenceDerivedFrom
+    reasons: list[str] = Field(default_factory=list)
+
+
+class DriverRiskDetails(BaseModel):
+    """Capture deterministic risk score and discrete risk band for one driver analysis."""
+
+    score: float
+    band: str
+
+
+class DriverAnalysis(BaseModel):
+    """Define the canonical structured deterministic single-driver behaviour analysis payload."""
+
+    journey_count: int
+    event_count: int
+    event_breakdown: dict[str, int]
+    risk: DriverRiskDetails
+    assessment_confidence: AssessmentConfidence
+    dominant_behaviours: list[str]
+    primary_risk_dimension: str
+    coaching_focus: list[str]
+
+
+class FleetTopDriver(BaseModel):
+    """Represent one top-risk driver in fleet-level structured analysis output."""
+
+    driver_id: int
+    name: str
+    event_count: int
+    primary_behaviour: str
+
+
+class FleetAnalysis(BaseModel):
+    """Define the canonical structured deterministic fleet-level behaviour analysis payload."""
+
+    driver_count: int
+    event_count: int
+    event_breakdown: dict[str, int]
+    top_drivers: list[FleetTopDriver]
+    site_clusters: list[str]
+    dominant_risk_theme: str
+    risk_distribution: str
+    anomalies: list[str]
+    recommended_actions: list[str]
+    assessment_confidence: AssessmentConfidence
+
+
+class SummaryMetadata(BaseModel):
+    """Store cache metadata fields for canonical analysis-summary cache envelopes."""
+
+    cache_key: str
+    cache_version: str
+    generated_at: str
+    model: str
+
+
+class SummaryTextPayload(BaseModel):
+    """Store AI-rendered narrative text as presentation-layer summary payload."""
+
+    text: str
+
+
+class DriverSummaryCachePayload(BaseModel):
+    """Represent canonical cache envelope for single-driver behaviour summaries."""
+
+    metadata: SummaryMetadata
+    analysis: DriverAnalysis
+    summary: SummaryTextPayload
+
+
+class FleetSummaryCachePayload(BaseModel):
+    """Represent canonical cache envelope for fleet behaviour summaries."""
+
+    metadata: SummaryMetadata
+    analysis: FleetAnalysis
+    summary: SummaryTextPayload
+
+
 class FleetSummaryEventRecord(BaseEventRecord):
     """Input row model for fleet-level AI summary requests."""
 

@@ -26,20 +26,47 @@ def _normalized(text: str) -> str:
 
 
 def _contains_any(text: str, phrases: list[str]) -> bool:
-    """Return true when normalized text contains any normalized phrase candidate."""
+    """Return whether normalized text contains at least one normalized candidate phrase.
+
+    Args:
+        text: Source text to inspect.
+        phrases: Candidate phrases; empty phrases are ignored.
+
+    Returns:
+        `True` when any candidate phrase appears in normalized `text`, else `False`.
+    """
     normalized_text = _normalized(text)
     return any(_normalized(phrase) in normalized_text for phrase in phrases if phrase)
 
 
 def assert_required_phrases(summary: str, required: list[str]) -> None:
-    """Assert that each required phrase/concept appears in the generated summary."""
+    """Assert that each required phrase/concept appears in the generated summary.
+
+    Args:
+        summary: Generated summary text under validation.
+        required: Phrases/concepts that must appear in the summary.
+
+    Returns:
+        None.
+
+    Raises:
+        AssertionError: If any required phrase/concept is missing.
+    """
     for phrase in required or []:
         if not _contains_any(summary, [phrase]):
             raise AssertionError(f"Missing required phrase/concept: {phrase}")
 
 
 def assert_preferred_phrases(summary: str, preferred: list[str]) -> list[str]:
-    """Return preferred phrases that are not present in the summary text."""
+    """Return preferred phrases that are not present in the summary text.
+
+    Args:
+        summary: Generated summary text under validation.
+        preferred: Phrases that should ideally be present.
+
+    Returns:
+        List of preferred phrases not found in `summary`.
+    """
     missing = []
     for phrase in preferred or []:
         if not _contains_any(summary, [phrase]):

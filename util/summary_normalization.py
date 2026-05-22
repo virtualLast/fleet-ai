@@ -29,7 +29,25 @@ def normalize_summary_dataset(
     text_defaults: dict[str, str] | None = None,
     sort_keys: tuple[str, ...] = (),
 ) -> list[dict]:
-    """Normalize rows using shared int/text coercion and optional stable sorting."""
+    """Normalize summary rows with deterministic field coercion and optional stable sorting.
+
+    Args:
+        raw_data: Source rows to normalize; non-dict rows are ignored.
+        int_fields: Integer field names to include in each normalized row.
+        text_fields: Text field names to include in each normalized row.
+        int_defaults: Optional per-field defaults for integer coercion.
+        text_defaults: Optional per-field defaults for text coercion.
+        sort_keys: Optional deterministic sort keys; must be subset of selected fields.
+
+    Returns:
+        A new list of normalized dictionaries containing only selected int/text fields.
+
+    Side effects:
+        None.
+
+    Raises:
+        ValueError: If any key in `sort_keys` is missing from `int_fields` and `text_fields`.
+    """
 
     normalized_rows = []
     int_defaults = int_defaults or {}

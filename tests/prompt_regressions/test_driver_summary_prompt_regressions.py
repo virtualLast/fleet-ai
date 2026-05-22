@@ -29,7 +29,24 @@ def _load_json(path: Path) -> dict:
 
 
 def _append_run_metadata(dataset_name: str, summary: str) -> None:
-    """Append bounded prompt-regression execution metadata for traceability."""
+    """Append bounded prompt-regression execution metadata for traceability.
+
+    Args:
+        dataset_name: Prompt-regression scenario identifier.
+        summary: Generated summary text used to derive a stable hash.
+
+    Returns:
+        None.
+
+    Side effects:
+        - Creates the metadata directory and file when missing.
+        - Reads existing JSONL metadata entries from disk.
+        - Appends one new run record and truncates to `MAX_METADATA_LINES`.
+        - Persists the bounded JSONL content back to disk.
+
+    Raises:
+        OSError: If filesystem read/write operations fail.
+    """
     METADATA_LOG.parent.mkdir(parents=True, exist_ok=True)
     METADATA_LOG.touch(exist_ok=True)
     payload = {

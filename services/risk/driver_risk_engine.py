@@ -44,7 +44,16 @@ class DriverRiskEngine:
 
     @classmethod
     def compute_behaviour_breakdown(cls, normalized_data: list[dict]) -> dict:
-        """Return legacy-compatible behaviour breakdown derived from v2 features."""
+        """Return legacy-compatible behaviour breakdown derived from deterministic v2 features.
+
+        Args:
+            normalized_data: Normalized journey rows used to compute behaviour metrics.
+
+        Returns:
+            Mapping of behaviour key to metric dictionary containing:
+            - `raw_event_count`: total observed events for the behaviour.
+            - `journey_presence_count`: count of journeys where behaviour appeared.
+        """
 
         features = extract_risk_features(normalized_data if isinstance(normalized_data, list) else [])
         return {

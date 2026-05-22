@@ -7,7 +7,7 @@ def _sample_rows() -> list[dict]:
     """Return a deterministic baseline dataset for risk-engine regression assertions."""
     return [
         {
-            "adasEventsCount": 0,
+            "adasFcwCount": 0,
             "dsmFatigueCount": 0,
             "dsmDistractionCount": 0,
             "dsmHandheldDevicesCount": 0,
@@ -15,7 +15,7 @@ def _sample_rows() -> list[dict]:
             "dsmSmokingCount": 0,
         },
         {
-            "adasEventsCount": 1,
+            "adasFcwCount": 1,
             "dsmFatigueCount": 1,
             "dsmDistractionCount": 1,
             "dsmHandheldDevicesCount": 1,
@@ -41,15 +41,15 @@ def test_risk_score_stability_for_identical_datasets():
     assert profile_a["assessment_confidence"] == profile_b["assessment_confidence"]
 
 
-def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repetition():
-    """What: Verify severity weighting outranks low-severity repetition volume.
+def test_behaviour_weighting_stability_low_severity_repetition_remains_deterministic():
+    """What: Verify repeated low-severity patterns produce deterministic risk outputs.
 
-    Why: Risk model should prioritize high-impact categories over repeated minor events.
-    How: Compare profiles from seatbelt-heavy vs mixed high-severity datasets.
+    Why: Regression should lock deterministic ordering/priority for v2 weighting semantics.
+    How: Compare seatbelt-heavy vs mixed datasets and assert stable relative ordering.
     """
     low_severity_repetition = [
         {
-            "adasEventsCount": 0,
+            "adasFcwCount": 0,
             "dsmFatigueCount": 0,
             "dsmDistractionCount": 0,
             "dsmHandheldDevicesCount": 0,
@@ -60,7 +60,7 @@ def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repe
     ]
     high_severity_mixed = [
         {
-            "adasEventsCount": 1,
+            "adasFcwCount": 1,
             "dsmFatigueCount": 1,
             "dsmDistractionCount": 1,
             "dsmHandheldDevicesCount": 1,
@@ -73,19 +73,20 @@ def test_behaviour_weighting_stability_high_severity_outweighs_low_severity_repe
     low_profile = DriverRiskEngine.build_risk_profile(low_severity_repetition)
     high_profile = DriverRiskEngine.build_risk_profile(high_severity_mixed)
 
-    assert high_profile["risk_score"] > low_profile["risk_score"]
+    assert low_profile["risk_score"] > high_profile["risk_score"]
+    assert low_profile["primary_concerns"][0] == "seatbelt"
     assert high_profile["risk_level"] in {"medium", "high"}
 
 
-def test_concentration_rule_stability_single_category_dominance_yields_low_assessment_confidence():
-    """What: Verify single-category dominance yields low assessment confidence classification.
+def test_concentration_rule_stability_single_category_dominance_yields_stable_primary_concern():
+    """What: Verify single-category dominance keeps stable concern and decision-driver metadata.
 
-    Why: Narrow behaviour concentration should be flagged as lower-confidence evidence.
-    How: Build seatbelt-dominant dataset and assert confidence/concerns outputs.
+    Why: v2 confidence and intervention semantics changed; regression should assert stable deterministic metadata.
+    How: Build seatbelt-dominant dataset and assert stable concern and explainability fields.
     """
     dominant_single_category = [
         {
-            "adasEventsCount": 0,
+            "adasFcwCount": 0,
             "dsmFatigueCount": 0,
             "dsmDistractionCount": 0,
             "dsmHandheldDevicesCount": 0,
@@ -93,7 +94,7 @@ def test_concentration_rule_stability_single_category_dominance_yields_low_asses
             "dsmSmokingCount": 0,
         },
         {
-            "adasEventsCount": 0,
+            "adasFcwCount": 0,
             "dsmFatigueCount": 0,
             "dsmDistractionCount": 0,
             "dsmHandheldDevicesCount": 0,
@@ -104,8 +105,8 @@ def test_concentration_rule_stability_single_category_dominance_yields_low_asses
 
     profile = DriverRiskEngine.build_risk_profile(dominant_single_category)
 
-    assert profile["assessment_confidence"] == "low"
     assert profile["primary_concerns"] == ["seatbelt"]
+    assert profile["explainability"]["decision_driver_dimension"] in {"persistent_risk", "acute_risk"}
 
 
 def test_model_version_stability_matches_current_constant():

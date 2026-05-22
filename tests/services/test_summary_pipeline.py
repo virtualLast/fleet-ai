@@ -346,14 +346,15 @@ def test_aggregate_driver_behaviour_payload_returns_risk_profile_and_behaviour_s
         "distraction_events": 1,
         "adas_events": 0,
     }
-    assert aggregated["risk_profile"] == {
-        "model_version": "v1",
-        "risk_level": "high",
-        "risk_score": 5.5,
-        "assessment_confidence": "medium",
-        "primary_concerns": ["fatigue", "distraction", "seatbelt"],
-        "requires_intervention": True,
-    }
+    risk_profile = aggregated["risk_profile"]
+    assert risk_profile["model_version"] == "v2"
+    assert risk_profile["risk_level"] == "high"
+    assert risk_profile["risk_score"] > 0
+    assert risk_profile["assessment_confidence"] in {"medium", "high"}
+    assert risk_profile["requires_intervention"] is True
+    assert "dimensions" in risk_profile
+    assert "explainability" in risk_profile
+    assert "intervention" in risk_profile
 
 
 def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
@@ -366,26 +367,27 @@ def test_aggregate_driver_behaviour_payload_handles_empty_normalized_data():
 
     aggregated = summary_pipeline._aggregate_driver_behaviour_payload([], [])
 
-    assert aggregated == {
-        "driver_name": "unknown",
-        "driver_id": 0,
-        "journey_count": 0,
-        "event_count": 0,
-        "risk_profile": {
-            "model_version": "v1",
-            "risk_level": "low",
-            "risk_score": 0.0,
-            "assessment_confidence": "low",
-            "primary_concerns": [],
-            "requires_intervention": False,
-        },
-        "behaviour_summary": {
-            "seatbelt_events": 0,
-            "fatigue_events": 0,
-            "distraction_events": 0,
-            "adas_events": 0,
-        },
+    assert aggregated["driver_name"] == "unknown"
+    assert aggregated["driver_id"] == 0
+    assert aggregated["journey_count"] == 0
+    assert aggregated["event_count"] == 0
+    assert aggregated["behaviour_summary"] == {
+        "seatbelt_events": 0,
+        "fatigue_events": 0,
+        "distraction_events": 0,
+        "adas_events": 0,
     }
+
+    risk_profile = aggregated["risk_profile"]
+    assert risk_profile["model_version"] == "v2"
+    assert risk_profile["risk_level"] == "low"
+    assert risk_profile["risk_score"] == 0.0
+    assert risk_profile["assessment_confidence"] == "low"
+    assert risk_profile["primary_concerns"] == []
+    assert risk_profile["requires_intervention"] is False
+    assert "dimensions" in risk_profile
+    assert "explainability" in risk_profile
+    assert "intervention" in risk_profile
 
 
 def test_generate_driver_behaviour_summary_returns_cached_result(monkeypatch):

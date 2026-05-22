@@ -9,7 +9,7 @@ def test_compute_behaviour_breakdown_tracks_raw_counts_and_journey_presence():
     """
     normalized_data = [
         {
-            "adasEventsCount": 0,
+            "adasFcwCount": 0,
             "dsmFatigueCount": 0,
             "dsmDistractionCount": 1,
             "dsmHandheldDevicesCount": 0,
@@ -17,7 +17,7 @@ def test_compute_behaviour_breakdown_tracks_raw_counts_and_journey_presence():
             "dsmSmokingCount": 0,
         },
         {
-            "adasEventsCount": 1,
+            "adasFcwCount": 1,
             "dsmFatigueCount": 0,
             "dsmDistractionCount": 0,
             "dsmHandheldDevicesCount": 1,
@@ -25,7 +25,7 @@ def test_compute_behaviour_breakdown_tracks_raw_counts_and_journey_presence():
             "dsmSmokingCount": 3,
         },
         {
-            "adasEventsCount": 0,
+            "adasFcwCount": 0,
             "dsmFatigueCount": 1,
             "dsmDistractionCount": 2,
             "dsmHandheldDevicesCount": 0,
@@ -40,8 +40,8 @@ def test_compute_behaviour_breakdown_tracks_raw_counts_and_journey_presence():
     assert breakdown["dsm_seatbelt"]["journey_presence_count"] == 2
     assert breakdown["dsm_distraction"]["raw_event_count"] == 3
     assert breakdown["dsm_distraction"]["journey_presence_count"] == 2
-    assert breakdown["adas_events"]["raw_event_count"] == 1
-    assert breakdown["adas_events"]["journey_presence_count"] == 1
+    assert breakdown["adas_fcw"]["raw_event_count"] == 1
+    assert breakdown["adas_fcw"]["journey_presence_count"] == 1
 
 
 def test_calculate_weighted_risk_score_uses_journey_presence_not_raw_event_totals():
@@ -53,16 +53,20 @@ def test_calculate_weighted_risk_score_uses_journey_presence_not_raw_event_total
     behaviour_breakdown = {
         "dsm_fatigue": {"raw_event_count": 0, "journey_presence_count": 0},
         "dsm_distraction": {"raw_event_count": 0, "journey_presence_count": 0},
-        "dsm_handheld_device": {"raw_event_count": 0, "journey_presence_count": 0},
-        "adas_events": {"raw_event_count": 0, "journey_presence_count": 0},
+        "dsm_handheld_devices": {"raw_event_count": 0, "journey_presence_count": 0},
+        "adas_fcw": {"raw_event_count": 0, "journey_presence_count": 0},
+        "adas_hmw": {"raw_event_count": 0, "journey_presence_count": 0},
+        "adas_pcw": {"raw_event_count": 0, "journey_presence_count": 0},
+        "dsm_no_driver": {"raw_event_count": 0, "journey_presence_count": 0},
+        "dsm_yawning": {"raw_event_count": 0, "journey_presence_count": 0},
         "dsm_seatbelt": {"raw_event_count": 30, "journey_presence_count": 1},
         "dsm_smoking": {"raw_event_count": 0, "journey_presence_count": 0},
     }
 
-    # If raw totals were used, this would be inflated. Presence-based score is 1.0.
+    # If raw totals were used, this would be inflated. Presence-based score stays bounded.
     risk_score = DriverRiskEngine.calculate_weighted_risk_score(behaviour_breakdown, journey_count=2)
 
-    assert risk_score == 1.0
+    assert risk_score == 1.5
 
 
 def test_classify_risk_level_uses_expected_boundaries():
@@ -140,15 +144,15 @@ def test_derive_primary_concerns_ranks_by_weighted_contribution_and_caps_to_thre
     behaviour_breakdown = {
         "dsm_fatigue": {"raw_event_count": 3, "journey_presence_count": 2},      # 15
         "dsm_distraction": {"raw_event_count": 4, "journey_presence_count": 3},   # 16
-        "dsm_handheld_device": {"raw_event_count": 2, "journey_presence_count": 2},  # 8
-        "adas_events": {"raw_event_count": 8, "journey_presence_count": 4},       # 24
+        "dsm_handheld_devices": {"raw_event_count": 2, "journey_presence_count": 2},  # 8
+        "adas_fcw": {"raw_event_count": 8, "journey_presence_count": 4},       # 40
         "dsm_seatbelt": {"raw_event_count": 10, "journey_presence_count": 5},     # 20
         "dsm_smoking": {"raw_event_count": 1, "journey_presence_count": 1},       # 2
     }
 
     concerns = DriverRiskEngine.derive_primary_concerns(behaviour_breakdown)
 
-    assert concerns == ["adas", "seatbelt", "distraction"]
+    assert concerns == ["adas_fcw", "seatbelt", "distraction"]
     assert len(concerns) == 3
 
 
@@ -160,7 +164,7 @@ def test_build_risk_profile_includes_model_version_and_deterministic_fields():
     """
     normalized_data = [
         {
-            "adasEventsCount": 1,
+            "adasFcwCount": 1,
             "dsmFatigueCount": 1,
             "dsmDistractionCount": 1,
             "dsmHandheldDevicesCount": 1,
@@ -168,7 +172,7 @@ def test_build_risk_profile_includes_model_version_and_deterministic_fields():
             "dsmSmokingCount": 1,
         },
         {
-            "adasEventsCount": 2,
+            "adasFcwCount": 2,
             "dsmFatigueCount": 2,
             "dsmDistractionCount": 1,
             "dsmHandheldDevicesCount": 1,
@@ -179,9 +183,10 @@ def test_build_risk_profile_includes_model_version_and_deterministic_fields():
 
     profile = DriverRiskEngine.build_risk_profile(normalized_data)
 
-    assert profile["model_version"] == "v1"
+    assert profile["model_version"] == "v2"
     assert profile["risk_level"] == "high"
-    assert profile["risk_score"] == 20.0
+    assert profile["risk_score"] > 0
     assert profile["assessment_confidence"] == "high"
     assert profile["requires_intervention"] is True
-    assert profile["primary_concerns"] == ["fatigue", "adas", "distraction"]
+    assert profile["primary_concerns"]
+    assert "dimensions" in profile

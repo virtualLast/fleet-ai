@@ -379,3 +379,18 @@ def test_generate_driver_behaviour_summary_returns_cached_result(monkeypatch):
     # Assert
     assert result == "cached summary"
 ```
+
+### Working in TDD flow
+
+When implementing behavior changes, prefer short Red → Green → Refactor cycles:
+- Red: Add or update one deterministic test that fails for the target behavior.
+- Green: Implement the minimal change required to make that test pass.
+- Refactor: Improve readability/design without changing behavior, and keep tests green.
+
+TDD execution rules:
+- Keep each cycle atomic and focused on a single behavior outcome.
+- Confirm the new/updated test fails for the expected reason before applying the fix.
+- Run relevant tests after each Green and Refactor step.
+- Keep tests documented with `What / Why / How` and structured with `Arrange / Act / Assert`.
+
+If strict test-first ordering is not feasible (for example, urgent hotfixes or legacy constraints), document the reason explicitly and add backfill test coverage immediately after stabilization.

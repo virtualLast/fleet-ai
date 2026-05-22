@@ -1,45 +1,36 @@
-"""Deterministic risk engine for driver behaviour scoring and classification."""
+"""Compatibility facade over Behavioural Risk Engine v2 deterministic modules."""
+
+from services.risk.behaviour_registry import get_behaviour_definitions
+from services.risk.engine import RiskEngine
+from services.risk.feature_extraction import extract_risk_features
 
 
 class DriverRiskEngine:
-    """Build deterministic risk outputs from normalized journey behaviour rows.
+    """Expose legacy driver-risk API while delegating deterministic truth to v2 engine."""
 
-    The risk engine is the single source of truth for:
-    - behaviour breakdown computation
-    - weighted risk scoring
-    - risk level classification
-    - assessment confidence scoring
-    - primary concern derivation
-    - risk profile construction
-    """
-
-    RISK_MODEL_VERSION = "v1"
+    RISK_MODEL_VERSION = RiskEngine.RISK_MODEL_VERSION
 
     BEHAVIOUR_WEIGHTS = {
-        "dsm_fatigue": 5,
-        "dsm_distraction": 4,
-        "dsm_handheld_device": 4,
-        "adas_events": 3,
-        "dsm_seatbelt": 2,
-        "dsm_smoking": 2,
+        key: definition["severity_weight"]
+        for key, definition in get_behaviour_definitions().items()
     }
 
     _NORMALIZED_BEHAVIOUR_FIELDS = {
-        "dsm_fatigue": "dsmFatigueCount",
-        "dsm_distraction": "dsmDistractionCount",
-        "dsm_handheld_device": "dsmHandheldDevicesCount",
-        "adas_events": "adasEventsCount",
-        "dsm_seatbelt": "dsmSeatbeltCount",
-        "dsm_smoking": "dsmSmokingCount",
+        key: definition["source_field"]
+        for key, definition in get_behaviour_definitions().items()
     }
 
     _PRIMARY_CONCERN_LABELS = {
         "dsm_fatigue": "fatigue",
         "dsm_distraction": "distraction",
-        "dsm_handheld_device": "handheld_device",
-        "adas_events": "adas",
+        "dsm_handheld_devices": "handheld_device",
         "dsm_seatbelt": "seatbelt",
         "dsm_smoking": "smoking",
+        "dsm_no_driver": "no_driver",
+        "dsm_yawning": "yawning",
+        "adas_fcw": "adas_fcw",
+        "adas_hmw": "adas_hmw",
+        "adas_pcw": "adas_pcw",
     }
 
     @staticmethod
@@ -53,33 +44,16 @@ class DriverRiskEngine:
 
     @classmethod
     def compute_behaviour_breakdown(cls, normalized_data: list[dict]) -> dict:
-        """Return behavior breakdown with raw counts and journey presence counts.
+        """Return legacy-compatible behaviour breakdown derived from v2 features."""
 
-        `journey_presence_count` is computed as the number of journeys where the
-        per-journey event counter for the behavior is strictly greater than zero.
-        """
-
-        breakdown = {
+        features = extract_risk_features(normalized_data if isinstance(normalized_data, list) else [])
+        return {
             behavior_key: {
-                "raw_event_count": 0,
-                "journey_presence_count": 0,
+                "raw_event_count": metrics.raw_event_count,
+                "journey_presence_count": metrics.journey_presence_count,
             }
-            for behavior_key in cls.BEHAVIOUR_WEIGHTS
+            for behavior_key, metrics in features.behaviour_metrics.items()
         }
-
-        for row in normalized_data:
-            if not isinstance(row, dict):
-                continue
-
-            for behavior_key, field_name in cls._NORMALIZED_BEHAVIOUR_FIELDS.items():
-                event_count = cls._safe_non_negative_int(row.get(field_name, 0))
-                breakdown_entry = breakdown[behavior_key]
-                breakdown_entry["raw_event_count"] += event_count
-
-                if event_count > 0:
-                    breakdown_entry["journey_presence_count"] += 1
-
-        return breakdown
 
     @classmethod
     def calculate_weighted_risk_score(cls, behaviour_breakdown: dict, journey_count: int) -> float:
@@ -191,20 +165,21 @@ class DriverRiskEngine:
 
     @classmethod
     def build_risk_profile(cls, normalized_data: list[dict]) -> dict:
-        """Return deterministic risk profile from normalized journey rows."""
+        """Return legacy-compatible risk profile from v2 deterministic assessment."""
 
-        journey_count = len(normalized_data) if isinstance(normalized_data, list) else 0
-        behaviour_breakdown = cls.compute_behaviour_breakdown(normalized_data if isinstance(normalized_data, list) else [])
-        risk_score = cls.calculate_weighted_risk_score(behaviour_breakdown, journey_count)
-        risk_level = cls.classify_risk_level(risk_score)
-        assessment_confidence = cls.compute_assessment_confidence(journey_count, behaviour_breakdown)
-        primary_concerns = cls.derive_primary_concerns(behaviour_breakdown)
-
+        assessment = RiskEngine.build_assessment(normalized_data if isinstance(normalized_data, list) else [])
+        primary_concerns = [
+            cls._PRIMARY_CONCERN_LABELS.get(concern, concern)
+            for concern in (assessment.primary_concerns or [])
+        ]
         return {
-            "model_version": cls.RISK_MODEL_VERSION,
-            "risk_level": risk_level,
-            "risk_score": risk_score,
-            "assessment_confidence": assessment_confidence,
+            "model_version": assessment.model_version,
+            "risk_level": assessment.overall_risk_level,
+            "risk_score": assessment.overall_risk_score,
+            "assessment_confidence": assessment.assessment_confidence,
             "primary_concerns": primary_concerns,
-            "requires_intervention": risk_level == "high",
+            "requires_intervention": assessment.requires_intervention,
+            "dimensions": assessment.dimensions,
+            "explainability": assessment.explainability,
+            "intervention": assessment.intervention,
         }

@@ -1,7 +1,7 @@
 {
   "risk": {
-    "risk_level_allowed": ["low", "medium"],
-    "assessment_confidence": "low",
+    "risk_level_allowed": ["high"],
+    "assessment_confidence": "high",
     "primary_concerns_contains": ["seatbelt"]
   },
   "semantic": {

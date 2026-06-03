@@ -6,17 +6,16 @@ logic to `services.summary_pipeline`.
 
 import logging
 
-from fastapi import FastAPI
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from services.summary_pipeline import generate_driver_behaviour_summary, generate_fleet_summary
+
 from models.driver_summary import (
     DriverBehaviourSummary,
     DriverBehaviourSummaryRequest,
     FleetSummary,
     FleetSummaryRequest,
 )
-
+from services.summary_pipeline import generate_driver_behaviour_summary, generate_fleet_summary
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +35,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# single driver endpoint
 @app.post("/ai/driver-behaviour-summary", response_model=DriverBehaviourSummary)
-def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
+def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest) -> DriverBehaviourSummary:
     """Generate a single-driver behaviour summary from validated request payload.
 
     Args:
@@ -55,8 +56,10 @@ def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
     """
 
     # Convert validated Pydantic objects into plain dicts expected by pipeline normalization.
+    # todo i want typed models here
     collection_data = [event.model_dump() for event in payload.data]
 
+    # exception if error
     try:
         return generate_driver_behaviour_summary(payload.collection_scope, collection_data)
     except HTTPException:
@@ -69,7 +72,7 @@ def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
 
 
 @app.post("/ai/fleet-summary", response_model=FleetSummary)
-def summarize_fleet(payload: FleetSummaryRequest):
+def summarize_fleet(payload: FleetSummaryRequest) -> FleetSummary:
     """Generate a fleet-level aggregate summary for the provided collection payload.
 
     Args:

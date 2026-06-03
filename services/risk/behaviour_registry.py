@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+from typing import TypedDict
 
-BEHAVIOUR_DEFINITIONS = {
+
+class BehaviourDefinition(TypedDict):
+    """Represent static metadata for one tracked behaviour."""
+
+    source_field: str
+    severity_weight: float
+    category: str
+    label: str
+
+
+BEHAVIOUR_DEFINITIONS: dict[str, BehaviourDefinition] = {
     "adas_fcw": {
         "source_field": "adasFcwCount",
         "severity_weight": 5.0,
@@ -67,7 +78,7 @@ BEHAVIOUR_DEFINITIONS = {
 }
 
 
-def get_behaviour_definitions() -> dict:
+def get_behaviour_definitions() -> dict[str, BehaviourDefinition]:
     """Return immutable-order behaviour definitions for deterministic iteration."""
 
     return BEHAVIOUR_DEFINITIONS
@@ -82,7 +93,4 @@ def get_behaviour_keys() -> tuple[str, ...]:
 def get_behaviour_source_fields() -> dict[str, str]:
     """Return mapping of behaviour key to normalized source field name."""
 
-    return {
-        behaviour_key: definition["source_field"]
-        for behaviour_key, definition in BEHAVIOUR_DEFINITIONS.items()
-    }
+    return {behaviour_key: definition["source_field"] for behaviour_key, definition in BEHAVIOUR_DEFINITIONS.items()}

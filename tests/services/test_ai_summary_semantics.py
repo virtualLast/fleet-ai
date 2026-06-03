@@ -25,6 +25,7 @@ def _make_aggregated_payload(risk_profile: dict, behaviour_summary: dict, event_
 
 def _patch_ai_summary(monkeypatch, summary_text: str):
     """Patch AI client with deterministic response text for semantic assertions."""
+
     class FakeResponse:
         output_text = summary_text
 
@@ -71,7 +72,9 @@ def test_narrative_alignment_for_low_confidence_single_pattern(monkeypatch):
     assert_required_concepts(summary, ["low_confidence_cautious", "single_pattern_acknowledged"])
     assert_forbidden_phrases(summary, ["dangerous driving", "high-risk behaviour", "aggressive driving"])
     assert_summary_consistent_with_risk_profile(summary, payload["risk_profile"])
-    assert_behaviour_consistency(summary, payload["behaviour_summary"], ["fatigue", "distraction", "handheld_device", "smoking", "aggression"])
+    assert_behaviour_consistency(
+        summary, payload["behaviour_summary"], ["fatigue", "distraction", "handheld_device", "smoking", "aggression"]
+    )
     assert_tones(summary, ["cautious"], ["critical", "urgent"])
 
 
@@ -82,7 +85,8 @@ def test_narrative_alignment_for_high_risk_multi_category(monkeypatch):
     Why: High-confidence multi-risk profiles should acknowledge multiple concern domains.
     How: Patch output with multi-signal narrative and assert phrase/tone consistency checks.
     """
-    output = "There are clear fatigue and distraction signals with handheld-device events; targeted coaching intervention is recommended."
+    output = ("There are clear fatigue and distraction signals with handheld-device events; "
+              "targeted coaching intervention is recommended.")
     _patch_ai_summary(monkeypatch, output)
 
     payload = _make_aggregated_payload(
@@ -139,7 +143,11 @@ def test_hallucination_prevention_for_clean_driver(monkeypatch):
 
     assert_required_concepts(summary, ["positive_reassurance", "no_concerns"])
     assert_forbidden_phrases(summary, ["dangerous", "high-risk behaviour", "missing data risk", "urgent intervention"])
-    assert_behaviour_consistency(summary, payload["behaviour_summary"], ["fatigue", "distraction", "handheld_device", "seatbelt", "smoking", "aggression"])
+    assert_behaviour_consistency(
+        summary,
+        payload["behaviour_summary"],
+        ["fatigue", "distraction", "handheld_device", "seatbelt", "smoking", "aggression"],
+    )
     assert_tones(summary, ["supportive"], ["critical", "urgent", "disciplinary"])
 
 
@@ -173,4 +181,4 @@ def test_no_semantic_scoring_escalation_for_low_risk_low_confidence(monkeypatch)
     with pytest.raises(AssertionError):
         assert_summary_consistent_with_risk_profile(summary, payload["risk_profile"])
     with pytest.raises(AssertionError):
-        assert_forbidden_phrases(summary, ["dangerous", "high-risk behaviour", "urgent intervention"]) 
+        assert_forbidden_phrases(summary, ["dangerous", "high-risk behaviour", "urgent intervention"])

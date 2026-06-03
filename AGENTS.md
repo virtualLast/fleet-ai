@@ -134,7 +134,8 @@ Execute the TODO plan safely and incrementally.
     1. Implement the change
     2. Run the test suite
     3. Confirm all tests pass
-    4. Mark the step as complete
+    4. Confirm `make check` passes
+    5. Mark the step as complete
 
 **Rules:**
 - Do not batch multiple steps together

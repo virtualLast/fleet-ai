@@ -2,35 +2,64 @@
 
 ## Who This Guide Is For
 
-This guide is for a new Python developer who wants to understand how this project is put together, what each part does, and why the design is split across several files instead of being written as one large script.
+This guide is the primary onboarding entry point for developers who need to understand how Fleet AI is structured today.
 
-The project is called Fleet AI. It receives fleet and driver safety event data, turns that data into consistent Python structures, calculates deterministic risk where needed, asks OpenAI to write plain-English summaries, caches results, and returns API responses.
+## What The Project Does (Current State)
 
-The most important idea in this codebase is separation of responsibilities:
+Fleet AI exposes two active API endpoints:
 
-- `api/api.py` receives HTTP requests.
-- `models/driver_summary.py` defines the shapes of requests and responses.
-- `services/summary_pipeline.py` coordinates the main business flow.
-- `services/risk/driver_risk_engine.py` calculates driver risk in normal Python code.
-- `services/ai_summary.py` asks OpenAI to turn already-prepared data into prose.
-- `cache/cache_worker.py` reads and writes cached summaries.
+- `POST /ai/driver-behaviour-summary`
+- `POST /ai/fleet-summary`
 
-That split is deliberate. It keeps web routing, validation, risk calculation, AI prompting, and file caching from becoming tangled together.
+Both endpoints accept event collections, run deterministic normalization and cache logic, and return narrative summaries. Driver-level summaries include deterministic risk analysis produced by the risk engine layer.
 
-## What The Project Does
+Core responsibilities are intentionally split:
 
-Fleet AI currently exposes two active API endpoints in `api/api.py`:
+- `api/api.py` — HTTP routes and error translation.
+- `models/driver_summary.py` — Pydantic request/response/cache payload contracts.
+- `services/summary_pipeline.py` — orchestration for validation, normalization, caching, deterministic analysis, and AI summarization.
+- `services/risk/driver_risk_engine.py` + `services/risk/engine.py` — deterministic risk API facade and v2 risk orchestration.
+- `services/ai_summary.py` — narrative generation with sanitized prompt payloads.
+- `cache/cache_worker.py` — cache keying, persistence, validation, and fleet TTL checks.
+- `util/summary_normalization.py` — shared deterministic normalization helper.
+- `tests/` — architecture guarantees in executable form.
 
-```python
-@app.post("/ai/driver-behaviour-summary", response_model=DriverBehaviourSummary)
-def summarize_driver_behaviour(payload: DriverBehaviourSummaryRequest):
-    collection_data = [event.model_dump() for event in payload.data]
-    return generate_driver_behaviour_summary(payload.collection_scope, collection_data)
+## Architecture Reading Order
+
+Start here, then read these focused documents:
+
+1. [Runtime flow](/documentation/architecture/runtime-flow.md)
+2. [API and model contracts](/documentation/architecture/api-and-model-contracts.md)
+3. [Pipeline and caching](/documentation/architecture/pipeline-and-caching.md)
+4. [Risk and AI responsibilities](/documentation/architecture/risk-and-ai-responsibilities.md)
+5. [Testing and quality rails](/documentation/architecture/testing-and-quality-rails.md)
+
+Risk engine deep dive (authoritative semantics, no duplicate here):
+
+- [Risk Engine](/documentation/architecture/risk-engine.md)
+
+## High-Level Runtime Path
+
+```text
+HTTP request
+  -> api/api.py
+  -> models/driver_summary.py
+  -> services/summary_pipeline.py
+      -> cache/cache_worker.py (read)
+      -> services/risk/* (driver behaviour deterministic analysis)
+      -> services/ai_summary.py (narrative generation)
+      -> cache/cache_worker.py (write)
+  -> HTTP response
 ```
 
-The real function includes error handling, but the simplified version above shows the core flow from `api/api.py::summarize_driver_behaviour()`: receive a validated request, convert Pydantic models into dictionaries, and delegate the work to `services.summary_pipeline.generate_driver_behaviour_summary()`.
+## Active vs Legacy Notes
 
-The second active endpoint is fleet-level:
+- Active API routes are only:
+  - `POST /ai/driver-behaviour-summary`
+  - `POST /ai/fleet-summary`
+- `services/summary_pipeline.py` still contains legacy/internal helper paths (for example `_normalize_collection_data` and fallback helper functions) that are not exposed as current public API routes.
+
+## Code Example: Thin API Delegation Pattern
 
 ```python
 @app.post("/ai/fleet-summary", response_model=FleetSummary)
@@ -39,31 +68,9 @@ def summarize_fleet(payload: FleetSummaryRequest):
     return generate_fleet_summary(payload.collection_scope, collection_data)
 ```
 
-This mirrors `api/api.py::summarize_fleet()`. The endpoint receives a fleet dataset and delegates to `services.summary_pipeline.generate_fleet_summary()`.
+## Legacy Appendix (Superseded)
 
-In plain English, the project answers two questions:
-
-- For one driver over a set of journeys, what behaviour risks are visible?
-- For a whole fleet dataset, what operational safety patterns stand out?
-
-The project uses deterministic Python logic for risk scoring and OpenAI for narrative writing. That distinction matters: safety risk should be repeatable and testable, while the AI is used to make the result easier for a human to read.
-
-## Big Picture Architecture
-
-The codebase is small, but it already follows a layered service design:
-
-```text
-HTTP request
-  -> api/api.py
-  -> models/driver_summary.py
-  -> services/summary_pipeline.py
-  -> services/risk/driver_risk_engine.py
-  -> services/ai_summary.py
-  -> cache/cache_worker.py
-  -> HTTP response
-```
-
-The exact path depends on which endpoint is called, but this diagram shows the main idea: each layer owns a different kind of work.
+The sections below are retained as historical background. For current onboarding and implementation guidance, prefer the linked focused architecture documents above.
 
 ## Layer By Layer
 
@@ -138,7 +145,6 @@ Its job is to write summaries, not to decide risk. Important functions include:
 - `generate_driver_behaviour_aggregated_summary()`
 - `generate_fleet_summary_text()`
 - `generate_collection_summary()`
-- `generate_driver_journey_collection_summary()`
 
 Before data is sent to OpenAI, helper functions such as `_sanitize_aggregated_behaviour_payload()` and `_sanitize_fleet_summary_prompt_data()` whitelist fields and coerce values into predictable types.
 

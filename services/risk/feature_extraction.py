@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Any, TypedDict
+
 from services.risk.behaviour_registry import get_behaviour_definitions
 from services.risk.models import BehaviourMetrics, RiskFeatures
-
 
 HIGH_SEVERITY_EVENT_THRESHOLD = 5
 
 
-def _safe_non_negative_int(value: object) -> int:
+class InterimBehaviourMetrics(TypedDict):
+    """Represent mutable feature counters before conversion to BehaviourMetrics."""
+
+    raw_event_count: int
+    journey_presence_count: int
+    max_single_journey_events: int
+    weighted_score: float
+
+
+def _safe_non_negative_int(value: Any) -> int:
     """Safely coerce mixed input to non-negative int for risk feature extraction."""
 
     try:
@@ -31,7 +41,7 @@ def extract_risk_features(normalized_data: list[dict]) -> RiskFeatures:
     definitions = get_behaviour_definitions()
     journey_count = 0
     high_severity_journey_count = 0
-    interim = {
+    interim: dict[str, InterimBehaviourMetrics] = {
         key: {
             "raw_event_count": 0,
             "journey_presence_count": 0,

@@ -11,7 +11,9 @@ def test_evaluate_persistent_risk_returns_low_for_sparse_repetition():
     features = RiskFeatures(
         journey_count=10,
         behaviour_metrics={
-            "dsm_fatigue": BehaviourMetrics(raw_event_count=1, journey_presence_count=1, journey_ratio=0.1, weighted_score=5.0),
+            "dsm_fatigue": BehaviourMetrics(
+                raw_event_count=1, journey_presence_count=1, journey_ratio=0.1, weighted_score=5.0
+            ),
         },
     )
 
@@ -30,7 +32,9 @@ def test_evaluate_persistent_risk_returns_medium_for_repeated_patterns():
     features = RiskFeatures(
         journey_count=10,
         behaviour_metrics={
-            "dsm_distraction": BehaviourMetrics(raw_event_count=8, journey_presence_count=5, journey_ratio=0.5, weighted_score=24.0),
+            "dsm_distraction": BehaviourMetrics(
+                raw_event_count=8, journey_presence_count=5, journey_ratio=0.5, weighted_score=24.0
+            ),
         },
     )
 
@@ -49,8 +53,12 @@ def test_evaluate_persistent_risk_returns_high_for_strong_repeated_patterns():
     features = RiskFeatures(
         journey_count=8,
         behaviour_metrics={
-            "dsm_fatigue": BehaviourMetrics(raw_event_count=16, journey_presence_count=6, journey_ratio=0.75, weighted_score=48.0),
-            "dsm_distraction": BehaviourMetrics(raw_event_count=10, journey_presence_count=5, journey_ratio=0.625, weighted_score=30.0),
+            "dsm_fatigue": BehaviourMetrics(
+                raw_event_count=16, journey_presence_count=6, journey_ratio=0.75, weighted_score=48.0
+            ),
+            "dsm_distraction": BehaviourMetrics(
+                raw_event_count=10, journey_presence_count=5, journey_ratio=0.625, weighted_score=30.0
+            ),
         },
     )
 

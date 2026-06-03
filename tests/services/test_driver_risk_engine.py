@@ -142,12 +142,12 @@ def test_derive_primary_concerns_ranks_by_weighted_contribution_and_caps_to_thre
     How: Provide weighted breakdown and assert ordering plus max length.
     """
     behaviour_breakdown = {
-        "dsm_fatigue": {"raw_event_count": 3, "journey_presence_count": 2},      # 15
-        "dsm_distraction": {"raw_event_count": 4, "journey_presence_count": 3},   # 16
+        "dsm_fatigue": {"raw_event_count": 3, "journey_presence_count": 2},  # 15
+        "dsm_distraction": {"raw_event_count": 4, "journey_presence_count": 3},  # 16
         "dsm_handheld_devices": {"raw_event_count": 2, "journey_presence_count": 2},  # 8
-        "adas_fcw": {"raw_event_count": 8, "journey_presence_count": 4},       # 40
-        "dsm_seatbelt": {"raw_event_count": 10, "journey_presence_count": 5},     # 20
-        "dsm_smoking": {"raw_event_count": 1, "journey_presence_count": 1},       # 2
+        "adas_fcw": {"raw_event_count": 8, "journey_presence_count": 4},  # 40
+        "dsm_seatbelt": {"raw_event_count": 10, "journey_presence_count": 5},  # 20
+        "dsm_smoking": {"raw_event_count": 1, "journey_presence_count": 1},  # 2
     }
 
     concerns = DriverRiskEngine.derive_primary_concerns(behaviour_breakdown)

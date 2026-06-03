@@ -1,5 +1,7 @@
 """Compatibility facade over Behavioural Risk Engine v2 deterministic modules."""
 
+from typing import Any
+
 from services.risk.behaviour_registry import get_behaviour_definitions
 from services.risk.engine import RiskEngine
 from services.risk.feature_extraction import extract_risk_features
@@ -10,14 +12,10 @@ class DriverRiskEngine:
 
     RISK_MODEL_VERSION = RiskEngine.RISK_MODEL_VERSION
 
-    BEHAVIOUR_WEIGHTS = {
-        key: definition["severity_weight"]
-        for key, definition in get_behaviour_definitions().items()
-    }
+    BEHAVIOUR_WEIGHTS = {key: definition["severity_weight"] for key, definition in get_behaviour_definitions().items()}
 
     _NORMALIZED_BEHAVIOUR_FIELDS = {
-        key: definition["source_field"]
-        for key, definition in get_behaviour_definitions().items()
+        key: definition["source_field"] for key, definition in get_behaviour_definitions().items()
     }
 
     _PRIMARY_CONCERN_LABELS = {
@@ -34,7 +32,7 @@ class DriverRiskEngine:
     }
 
     @staticmethod
-    def _safe_non_negative_int(value) -> int:
+    def _safe_non_negative_int(value: Any) -> int:
         """Return non-negative integer from mixed numeric inputs."""
 
         try:
@@ -80,7 +78,9 @@ class DriverRiskEngine:
         weighted_event_sum = 0.0
 
         for behavior_key, weight in cls.BEHAVIOUR_WEIGHTS.items():
-            behavior_metrics = behaviour_breakdown.get(behavior_key, {}) if isinstance(behaviour_breakdown, dict) else {}
+            behavior_metrics = (
+                behaviour_breakdown.get(behavior_key, {}) if isinstance(behaviour_breakdown, dict) else {}
+            )
             journey_presence_count = cls._safe_non_negative_int(behavior_metrics.get("journey_presence_count", 0))
             weighted_event_sum += float(journey_presence_count * weight)
 
@@ -113,7 +113,9 @@ class DriverRiskEngine:
         contributions = {}
 
         for behavior_key, weight in cls.BEHAVIOUR_WEIGHTS.items():
-            behavior_metrics = behaviour_breakdown.get(behavior_key, {}) if isinstance(behaviour_breakdown, dict) else {}
+            behavior_metrics = (
+                behaviour_breakdown.get(behavior_key, {}) if isinstance(behaviour_breakdown, dict) else {}
+            )
             raw_event_count = cls._safe_non_negative_int(behavior_metrics.get("raw_event_count", 0))
             contributions[behavior_key] = float(raw_event_count * weight)
 
@@ -162,11 +164,7 @@ class DriverRiskEngine:
 
         contributions = cls._weighted_contributions(behaviour_breakdown)
         ranked = sorted(
-            (
-                (behavior_key, contribution)
-                for behavior_key, contribution in contributions.items()
-                if contribution > 0
-            ),
+            ((behavior_key, contribution) for behavior_key, contribution in contributions.items() if contribution > 0),
             key=lambda item: (-item[1], item[0]),
         )
 
@@ -178,8 +176,7 @@ class DriverRiskEngine:
 
         assessment = RiskEngine.build_assessment(normalized_data if isinstance(normalized_data, list) else [])
         primary_concerns = [
-            cls._PRIMARY_CONCERN_LABELS.get(concern, concern)
-            for concern in (assessment.primary_concerns or [])
+            cls._PRIMARY_CONCERN_LABELS.get(concern, concern) for concern in (assessment.primary_concerns or [])
         ]
         return {
             "model_version": assessment.model_version,

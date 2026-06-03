@@ -474,7 +474,7 @@ def test_generate_driver_behaviour_summary_generates_and_stores_on_cache_miss(mo
     assert result.event_count == 1
     assert result.summary == "Generated behaviour summary"
     assert stored["cache_key"] == result.cache_key
-    assert stored["entry"]["cache_version"] == "v1"
+    assert stored["entry"]["cache_version"] == summary_pipeline.CACHE_SCHEMA_VERSION
     assert stored["entry"]["summary"] == "Generated behaviour summary"
 
 

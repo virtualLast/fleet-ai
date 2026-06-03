@@ -1,29 +1,23 @@
 """Pipeline orchestration for CLI and API summary generation flows."""
 
-from datetime import datetime
-from datetime import timezone
+from datetime import datetime, timezone
+from typing import Any
 
-from models.driver_summary import DriverBehaviourSummary, FleetSummary
-from services.driver_metrics import extract_driver_metrics
-from services.ai_summary import (
-    generate_driver_behaviour_aggregated_summary,
-    generate_fleet_summary_text,
-    generate_driver_behaviour_summary_from_analysis,
-    generate_fleet_summary_from_analysis,
-)
-from services.risk.driver_risk_engine import DriverRiskEngine
+from fastapi import HTTPException
+
 from cache.cache_worker import (
     CACHE_SCHEMA_VERSION,
     build_driver_behaviour_cache_key,
-    load_driver_behaviour_cache_entry,
-    store_driver_behaviour_cache_entry,
     build_fleet_summary_cache_key,
     get_fleet_summary_cache,
+    load_driver_behaviour_cache_entry,
     set_fleet_summary_cache,
+    store_driver_behaviour_cache_entry,
 )
-from fastapi import HTTPException
+from models.driver_summary import DriverBehaviourSummary, FleetSummary
+from services.ai_summary import generate_driver_behaviour_aggregated_summary, generate_fleet_summary_text
+from services.risk.driver_risk_engine import DriverRiskEngine
 from util.summary_normalization import normalize_summary_dataset
-
 
 DRIVER_BEHAVIOUR_HASH_FIELDS = (
     "adasFcwCount",
@@ -97,13 +91,16 @@ def _validate_driver_behaviour_payload(collection_scope: str, data: list[dict]) 
     if not isinstance(data, list) or not data:
         raise HTTPException(status_code=400, detail="Missing required field: data")
 
-    expected_driver_id = None
+    expected_driver_id: int | None = None
 
     for index, row in enumerate(data):
         if not isinstance(row, dict):
             raise HTTPException(status_code=400, detail=f"Invalid row at index {index}")
 
         raw_driver_id = row.get("driverId")
+
+        if raw_driver_id is None:
+            raise HTTPException(status_code=400, detail=f"Invalid driverId at row {index}")
 
         try:
             driver_id = int(raw_driver_id)
@@ -130,6 +127,9 @@ def _validate_driver_behaviour_payload(collection_scope: str, data: list[dict]) 
                 datetime.fromisoformat(normalized_timestamp)
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Malformed timestamp: {timestamp_field}")
+
+    if expected_driver_id is None:
+        raise HTTPException(status_code=400, detail="Missing required field: data")
 
     return expected_driver_id
 
@@ -177,7 +177,9 @@ def _build_driver_event_breakdown(normalized_data: list[dict]) -> dict[str, int]
     }
 
 
-def _build_driver_assessment_confidence(journey_count: int, event_breakdown: dict[str, int], normalized_data: list[dict]) -> dict:
+def _build_driver_assessment_confidence(
+    journey_count: int, event_breakdown: dict[str, int], normalized_data: list[dict]
+) -> dict:
     """Derive deterministic assessment confidence structure for single-driver analysis payload."""
 
     non_zero_categories = sum(1 for value in event_breakdown.values() if value > 0)
@@ -252,7 +254,9 @@ def _build_driver_analysis_payload(raw_data: list[dict], normalized_data: list[d
                 "score": float(risk_profile.get("risk_score", 0.0) or 0.0),
                 "band": str(risk_profile.get("risk_level", "low") or "low"),
             },
-            "assessment_confidence": _build_driver_assessment_confidence(journey_count, event_breakdown, normalized_data),
+            "assessment_confidence": _build_driver_assessment_confidence(
+                journey_count, event_breakdown, normalized_data
+            ),
             "dominant_behaviours": dominant_behaviours,
             "primary_risk_dimension": primary_risk_dimension,
             "coaching_focus": coaching_focus,
@@ -307,7 +311,8 @@ def _build_zero_event_driver_behaviour_summary(aggregated_payload: dict) -> str:
 
     return (
         f"{driver_name} completed {journey_count} journeys with no tracked ADAS or DSM events. "
-        f"The deterministic risk engine assessed overall risk as {risk_level} with {assessment_confidence} assessment confidence. "
+        f"The deterministic risk engine assessed overall risk as {risk_level} "
+        f"with {assessment_confidence} assessment confidence. "
         "Continue routine monitoring to maintain this standard."
     )
 
@@ -315,10 +320,14 @@ def _build_zero_event_driver_behaviour_summary(aggregated_payload: dict) -> str:
 def generate_driver_behaviour_summary(collection_scope: str, data: list[dict]) -> DriverBehaviourSummary:
     """Generate driver behaviour summary with deterministic hash-based filesystem caching."""
 
+    # extract driver id and error if missing
+    # normalise data + make a cache key
     driver_id = _validate_driver_behaviour_payload(collection_scope, data)
     normalized_data = _normalize_driver_behaviour_hash_data(data)
     cache_key = _build_driver_behaviour_cache_key(collection_scope, data)
 
+    # try and find a cache entry
+    # if one is not found, build the cache data, save and return the cache entry data
     cached_entry = load_driver_behaviour_cache_entry(cache_key)
 
     if cached_entry:
@@ -331,7 +340,9 @@ def generate_driver_behaviour_summary(collection_scope: str, data: list[dict]) -
 
         metadata = cached_entry.get("metadata", {})
         analysis = cached_entry.get("analysis", {})
-        cached_driver_id = analysis.get("driver_id", metadata.get("driver_id", cached_entry.get("driver_id", driver_id)))
+        cached_driver_id = analysis.get(
+            "driver_id", metadata.get("driver_id", cached_entry.get("driver_id", driver_id))
+        )
         cached_event_count = analysis.get("event_count", cached_entry.get("event_count", 0))
 
         return DriverBehaviourSummary(
@@ -403,7 +414,11 @@ def generate_fleet_summary(collection_scope: str, data: list[dict]) -> FleetSumm
 
     if cached_entry:
         cached_summary = cached_entry.get("summary", {})
-        summary_text = cached_summary.get("text", "No summary available.") if isinstance(cached_summary, dict) else str(cached_summary)
+        summary_text = (
+            cached_summary.get("text", "No summary available.")
+            if isinstance(cached_summary, dict)
+            else str(cached_summary)
+        )
         metadata = cached_entry.get("metadata", {}) if isinstance(cached_entry.get("metadata", {}), dict) else {}
         generated_at = str(metadata.get("generated_at", cached_entry.get("generated_at", "")) or "")
 
@@ -435,12 +450,23 @@ def generate_fleet_summary(collection_scope: str, data: list[dict]) -> FleetSumm
             }
             for row in sorted(
                 normalized_data,
-                key=lambda item: (-(int(item.get("adasEventsCount", 0) or 0) + int(item.get("dsmEventsCount", 0) or 0)), str(item.get("entityName", ""))),
+                key=lambda item: (
+                    -(int(item.get("adasEventsCount", 0) or 0) + int(item.get("dsmEventsCount", 0) or 0)),
+                    str(item.get("entityName", "")),
+                ),
             )[:3]
             if (int(row.get("adasEventsCount", 0) or 0) + int(row.get("dsmEventsCount", 0) or 0)) > 0
         ],
-        "site_clusters": sorted({str(row.get("fleetLevelName", "unknown") or "unknown") for row in normalized_data if str(row.get("fleetLevelName", "")).strip()}),
-        "dominant_risk_theme": "seatbelt_non_compliance" if event_breakdown["seatbelt"] >= event_breakdown["handheld_device"] else "mobile_phone_distraction",
+        "site_clusters": sorted(
+            {
+                str(row.get("fleetLevelName", "unknown") or "unknown")
+                for row in normalized_data
+                if str(row.get("fleetLevelName", "")).strip()
+            }
+        ),
+        "dominant_risk_theme": "seatbelt_non_compliance"
+        if event_breakdown["seatbelt"] >= event_breakdown["handheld_device"]
+        else "mobile_phone_distraction",
         "risk_distribution": "outlier_concentrated",
         "anomalies": ["no_adas_events_detected"] if event_breakdown["adas"] == 0 else [],
         "recommended_actions": ["seatbelt_coaching", "targeted_mobile_phone_intervention"],
@@ -449,23 +475,28 @@ def generate_fleet_summary(collection_scope: str, data: list[dict]) -> FleetSumm
             "derived_from": {
                 "driver_volume": "high" if len(normalized_data) >= 15 else "low",
                 "event_volume": "high" if sum(event_breakdown.values()) >= 50 else "low",
-                "behavioural_distribution": "broad" if sum(1 for value in event_breakdown.values() if value > 0) >= 3 else "limited",
+                "behavioural_distribution": "broad"
+                if sum(1 for value in event_breakdown.values() if value > 0) >= 3
+                else "limited",
             },
             "reasons": [],
         },
     }
 
     summary = generate_fleet_summary_text(normalized_data)
-    cache_entry = set_fleet_summary_cache(cache_key, {
-        "metadata": {
-            "cache_key": cache_key,
-            "cache_version": CACHE_SCHEMA_VERSION,
-            "model": "gpt-5.4",
+    cache_entry = set_fleet_summary_cache(
+        cache_key,
+        {
+            "metadata": {
+                "cache_key": cache_key,
+                "cache_version": CACHE_SCHEMA_VERSION,
+                "model": "gpt-5.4",
+            },
+            "analysis": fleet_analysis,
+            "summary_payload": {"text": summary},
+            "summary": summary,
         },
-        "analysis": fleet_analysis,
-        "summary_payload": {"text": summary},
-        "summary": summary,
-    })
+    )
 
     response_summary = cache_entry.get("summary", {})
     if isinstance(response_summary, dict):
@@ -475,7 +506,12 @@ def generate_fleet_summary(collection_scope: str, data: list[dict]) -> FleetSumm
 
     return FleetSummary(
         summary=response_summary_text,
-        generated_at=str((cache_entry.get("metadata", {}) if isinstance(cache_entry.get("metadata", {}), dict) else {}).get("generated_at", cache_entry.get("generated_at", "")) or ""),
+        generated_at=str(
+            (cache_entry.get("metadata", {}) if isinstance(cache_entry.get("metadata", {}), dict) else {}).get(
+                "generated_at", cache_entry.get("generated_at", "")
+            )
+            or ""
+        ),
         cache_hit=False,
     )
 
@@ -489,7 +525,7 @@ def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
     - Keep `fleet_name`/`driver_name` labels for AI summary context.
     """
 
-    def _safe_int(value, fallback=0):
+    def _safe_int(value: Any, fallback: int | None = 0) -> int | None:
         """Convert `value` to int and return `fallback` when conversion fails."""
         try:
             return int(value)
@@ -515,100 +551,24 @@ def _normalize_collection_data(raw_data: list[dict]) -> list[dict]:
 
         used_driver_ids.add(driver_id)
 
-        normalized_data.append({
-            "driver_id": driver_id,
-            "driver_name": row.get("entityName", "unknown"),
-            "fleet_name": row.get("fleetLevelName", "unknown"),
-            "adasFcwCount": _safe_int(row.get("adasFcwCount", 0) or 0),
-            "adasHmwCount": _safe_int(row.get("adasHmwCount", 0) or 0),
-            "adasPcwCount": _safe_int(row.get("adasPcwCount", 0) or 0),
-            "adasEventsCount": _safe_int(row.get("adasEventsCount", 0) or 0),
-            "dsmFatigueCount": _safe_int(row.get("dsmFatigueCount", 0) or 0),
-            "dsmNoDriverCount": _safe_int(row.get("dsmNoDriverCount", 0) or 0),
-            "dsmHandheldDevicesCount": _safe_int(row.get("dsmHandheldDevicesCount", 0) or 0),
-            "dsmSmokingCount": _safe_int(row.get("dsmSmokingCount", 0) or 0),
-            "dsmDistractionCount": _safe_int(row.get("dsmDistractionCount", 0) or 0),
-            "dsmYawningCount": _safe_int(row.get("dsmYawningCount", 0) or 0),
-            "dsmSeatbeltCount": _safe_int(row.get("dsmSeatbeltCount", 0) or 0),
-            "dsmEventsCount": _safe_int(row.get("dsmEventsCount", 0) or 0),
-        })
-
-    return normalized_data
-
-
-def _get_matching_fallback_row(journey_id: int, data: list[dict]) -> dict | None:
-    """Return the payload row that matches journey id by `id` or `fleetLevelId`."""
-
-    for row in data:
-        raw_row_id = row.get("id")
-
-        if raw_row_id is None:
-            raw_row_id = row.get("fleetLevelId")
-
-        try:
-            row_id = int(raw_row_id)
-        except (TypeError, ValueError):
-            continue
-
-        if row_id == journey_id:
-            return row
-
-    return None
-
-
-def _validate_fallback_payload(fallback_payload: dict | None) -> tuple[str, list[dict]]:
-    """Validate secondary endpoint fallback context and return scope + payload rows."""
-
-    if fallback_payload is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Missing required fallback payload: collection_scope and data",
+        normalized_data.append(
+            {
+                "driver_id": driver_id,
+                "driver_name": row.get("entityName", "unknown"),
+                "fleet_name": row.get("fleetLevelName", "unknown"),
+                "adasFcwCount": _safe_int(row.get("adasFcwCount", 0) or 0),
+                "adasHmwCount": _safe_int(row.get("adasHmwCount", 0) or 0),
+                "adasPcwCount": _safe_int(row.get("adasPcwCount", 0) or 0),
+                "adasEventsCount": _safe_int(row.get("adasEventsCount", 0) or 0),
+                "dsmFatigueCount": _safe_int(row.get("dsmFatigueCount", 0) or 0),
+                "dsmNoDriverCount": _safe_int(row.get("dsmNoDriverCount", 0) or 0),
+                "dsmHandheldDevicesCount": _safe_int(row.get("dsmHandheldDevicesCount", 0) or 0),
+                "dsmSmokingCount": _safe_int(row.get("dsmSmokingCount", 0) or 0),
+                "dsmDistractionCount": _safe_int(row.get("dsmDistractionCount", 0) or 0),
+                "dsmYawningCount": _safe_int(row.get("dsmYawningCount", 0) or 0),
+                "dsmSeatbeltCount": _safe_int(row.get("dsmSeatbeltCount", 0) or 0),
+                "dsmEventsCount": _safe_int(row.get("dsmEventsCount", 0) or 0),
+            }
         )
 
-    collection_scope = fallback_payload.get("collection_scope")
-
-    if not isinstance(collection_scope, str) or not collection_scope.strip():
-        raise HTTPException(status_code=400, detail="Missing required field: collection_scope")
-
-    data = fallback_payload.get("data")
-
-    if not isinstance(data, list) or not data:
-        raise HTTPException(status_code=400, detail="Missing required field: data")
-
-    return collection_scope.strip(), data
-
-
-def _extract_collection_driver_name(journey_id: int, data: list[dict]) -> str:
-    """Return a representative driver name, preferring a journey-id row match."""
-
-    matching_row = _get_matching_fallback_row(journey_id, data)
-
-    if matching_row is not None:
-        raw_name = matching_row.get("entityName")
-
-        if isinstance(raw_name, str) and raw_name.strip():
-            return raw_name.strip()
-
-    for row in data:
-        raw_name = row.get("entityName")
-
-        if isinstance(raw_name, str) and raw_name.strip():
-            return raw_name.strip()
-
-    return "unknown"
-
-
-def _extract_fallback_driver_metrics(journey_id: int, row: dict):
-    """Validate minimum fallback row fields and convert to driver metrics."""
-
-    required_fields = ("fleetLevelName", "entityName")
-    missing_fields = [field for field in required_fields if not row.get(field)]
-
-    if missing_fields:
-        missing_labels = ", ".join(missing_fields)
-        raise HTTPException(status_code=400, detail=f"Missing required data fields: {missing_labels}")
-
-    enriched_row = dict(row)
-    enriched_row["id"] = journey_id
-
-    return extract_driver_metrics(enriched_row)
+    return normalized_data

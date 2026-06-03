@@ -1,6 +1,5 @@
 import re
 
-
 BEHAVIOUR_SYNONYMS = {
     "fatigue": ["fatigue", "drowsy", "drowsiness", "tiredness", "exhaustion"],
     "distraction": ["distraction", "distracted", "attention lapse"],
@@ -14,7 +13,14 @@ TONE_KEYWORDS = {
     "disciplinary": ["disciplinary", "discipline", "penalty", "sanction"],
     "critical": ["critical", "severe", "dangerous", "highly concerning"],
     "urgent": ["urgent", "immediate", "right away", "urgent intervention"],
-    "supportive": ["supportive", "reassuring", "encouraging", "positive", "routine monitoring", "maintain this standard"],
+    "supportive": [
+        "supportive",
+        "reassuring",
+        "encouraging",
+        "positive",
+        "routine monitoring",
+        "maintain this standard",
+    ],
     "coaching": ["coaching", "coach", "guidance", "improvement plan"],
     "cautious": ["cautious", "limited", "narrow", "preliminary", "low confidence"],
 }
@@ -89,7 +95,13 @@ def assert_required_concepts(summary: str, required_concepts: list[str]) -> None
         "high_confidence_firm": ["clear", "consistent", "strong signal", "high confidence"],
         "multi_risk_acknowledged": ["multiple", "fatigue", "distraction"],
         "positive_reassurance": ["safe", "reassuring", "positive", "no tracked", "maintain this standard"],
-        "no_concerns": ["no primary concerns", "no major concerns", "no significant concerns", "no tracked", "routine monitoring"],
+        "no_concerns": [
+            "no primary concerns",
+            "no major concerns",
+            "no significant concerns",
+            "no tracked",
+            "routine monitoring",
+        ],
     }
 
     for concept in required_concepts or []:
@@ -107,11 +119,15 @@ def assert_summary_consistent_with_risk_profile(summary: str, risk_profile: dict
     primary_concerns = (risk_profile or {}).get("primary_concerns") or []
 
     if confidence == "low":
-        if not _contains_any(summary, ["low confidence", "low assessment confidence", "limited", "cautious", "preliminary", "narrow"]):
+        if not _contains_any(
+            summary, ["low confidence", "low assessment confidence", "limited", "cautious", "preliminary", "narrow"]
+        ):
             raise AssertionError("Low-confidence profile requires cautious/uncertain wording")
 
     if risk_level == "low":
-        assert_forbidden_phrases(summary, ["dangerous", "severe", "critical", "urgent intervention", "highly concerning"])
+        assert_forbidden_phrases(
+            summary, ["dangerous", "severe", "critical", "urgent intervention", "highly concerning"]
+        )
 
     if not primary_concerns:
         assert_forbidden_phrases(summary, ["major concern", "critical concern", "key concern"])

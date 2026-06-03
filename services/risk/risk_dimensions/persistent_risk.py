@@ -30,7 +30,7 @@ def evaluate_persistent_risk(features: RiskFeatures) -> dict:
 
     journey_count = max(int(features.journey_count or 0), 1)
     weighted_ratio_sum = 0.0
-    contributors = []
+    contributors: list[dict[str, str | float]] = []
 
     for behaviour_key, metrics in features.behaviour_metrics.items():
         if metrics.journey_presence_count <= 0:
@@ -57,7 +57,7 @@ def evaluate_persistent_risk(features: RiskFeatures) -> dict:
     else:
         level = "low"
 
-    contributors.sort(key=lambda item: item["weighted_component"], reverse=True)
+    contributors.sort(key=lambda item: float(item["weighted_component"]), reverse=True)
 
     return {
         "level": level,

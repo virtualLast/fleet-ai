@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from services.risk.classification import classify_risk_assessment
 from services.risk.feature_extraction import extract_risk_features
+from services.risk.models import RiskAssessment
 from services.risk.risk_dimensions.acute_risk import evaluate_acute_risk
 from services.risk.risk_dimensions.breadth_risk import evaluate_breadth_risk
 from services.risk.risk_dimensions.persistent_risk import evaluate_persistent_risk
@@ -15,7 +16,7 @@ class RiskEngine:
     RISK_MODEL_VERSION = "v2"
 
     @classmethod
-    def build_assessment(cls, normalized_data: list[dict]):
+    def build_assessment(cls, normalized_data: list[dict]) -> RiskAssessment:
         """Build deterministic risk assessment from normalized journey rows.
 
         Args:

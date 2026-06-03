@@ -1,9 +1,9 @@
 from services.ai_summary import (
     _build_zero_event_collection_summary,
     _is_zero_event_collection,
-    generate_fleet_summary_text,
-    generate_driver_behaviour_aggregated_summary,
     generate_collection_summary,
+    generate_driver_behaviour_aggregated_summary,
+    generate_fleet_summary_text,
 )
 
 
@@ -136,8 +136,14 @@ def test_generate_driver_behaviour_aggregated_summary_returns_empty_fallback_for
     Why: Invalid payloads should return deterministic fallback instead of raising.
     How: Call with `{}` and list payloads, then assert canonical fallback text.
     """
-    assert generate_driver_behaviour_aggregated_summary({}) == "No driver behaviour data is available for this collection scope."
-    assert generate_driver_behaviour_aggregated_summary([]) == "No driver behaviour data is available for this collection scope."
+    assert (
+        generate_driver_behaviour_aggregated_summary({})
+        == "No driver behaviour data is available for this collection scope."
+    )
+    assert (
+        generate_driver_behaviour_aggregated_summary([])
+        == "No driver behaviour data is available for this collection scope."
+    )
 
 
 def test_generate_driver_behaviour_aggregated_summary_returns_deterministic_zero_event_text():
@@ -178,6 +184,7 @@ def test_generate_driver_behaviour_aggregated_summary_returns_error_fallback_whe
     Why: Driver summary endpoint must return safe fallback text on upstream errors.
     How: Monkeypatch client `responses.create` to raise and assert error fallback.
     """
+
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):
@@ -267,7 +274,10 @@ def test_generate_driver_behaviour_aggregated_summary_sanitizes_prompt_payload(m
     assert "Do not compute or override risk scoring." in captured["input"]
     assert "Do not introduce behavioural categories not present in input." in captured["input"]
     assert "Only use provided `risk_profile` and `behaviour_summary` fields." in captured["input"]
-    assert "If `risk_profile.assessment_confidence` is `low`, explicitly acknowledge uncertainty and ambiguity." in captured["input"]
+    assert (
+        "If `risk_profile.assessment_confidence` is `low`, explicitly acknowledge uncertainty and ambiguity."
+        in captured["input"]
+    )
     assert '"risk_level": "low"' in captured["input"]
 
 
@@ -287,6 +297,7 @@ def test_generate_fleet_summary_text_returns_error_fallback_when_client_fails(mo
     Why: Upstream AI outages should not propagate exceptions to callers.
     How: Monkeypatch client call to raise and assert stable fallback error text.
     """
+
     class FakeResponses:
         @staticmethod
         def create(**_kwargs):

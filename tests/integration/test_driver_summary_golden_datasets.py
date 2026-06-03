@@ -15,7 +15,6 @@ from tests.helpers.summary_semantic_assertions import (
     assert_tones,
 )
 
-
 GOLDEN_ROOT = Path("tests/golden_datasets")
 
 
@@ -26,6 +25,7 @@ def _load_json(path: Path) -> dict:
 
 def _patch_summary_output(monkeypatch, summary_text: str):
     """Patch AI client with deterministic summary text for integration assertions."""
+
     class FakeResponse:
         output_text = summary_text
 
@@ -51,7 +51,8 @@ def _patch_summary_output(monkeypatch, summary_text: str):
         ),
         (
             "mixed-high-risk",
-            "Clear fatigue and distraction patterns with handheld-device use indicate a high-risk profile and justify coaching intervention.",
+            "Clear fatigue and distraction patterns with handheld-device use indicate a high-risk profile "
+            "and justify coaching intervention.",
         ),
         (
             "clean-driver-no-events",
@@ -63,7 +64,8 @@ def test_driver_summary_golden_dataset_flow(monkeypatch, scenario: str, mocked_s
     """What: Validate full driver-summary flow against golden datasets.
 
     Why: Integration coverage ensures scoring and semantic assertions stay stable across scenarios.
-    How: Load golden input/expectations, run pipeline+summary path with patched model output, and assert risk/semantic checks.
+    How: Load golden input/expectations,
+    run pipeline+summary path with patched model output, and assert risk/semantic checks.
     """
     dataset = _load_json(GOLDEN_ROOT / "input" / f"{scenario}.json")
     expectations = _load_json(GOLDEN_ROOT / "expectations" / f"{scenario}.json")

@@ -59,7 +59,9 @@ def test_irrelevant_address_and_text_changes_do_not_affect_cache_key():
     How: Change addresses/name only and assert stable key output.
     """
     base = _row()
-    changed = _row(startAddress="Completely Different Address", endAddress="Another Address", entityName="Renamed Driver")
+    changed = _row(
+        startAddress="Completely Different Address", endAddress="Another Address", entityName="Renamed Driver"
+    )
 
     key_a = summary_pipeline._build_driver_behaviour_cache_key("scope-a", [base])
     key_b = summary_pipeline._build_driver_behaviour_cache_key("scope-a", [changed])

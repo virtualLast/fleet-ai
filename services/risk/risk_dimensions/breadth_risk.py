@@ -33,13 +33,14 @@ def evaluate_breadth_risk(features: RiskFeatures) -> dict:
 
     definitions = get_behaviour_definitions()
     active_weight_sum = 0.0
-    contributors = []
+    contributors: list[dict[str, str | int | float]] = []
 
     for behaviour_key, metrics in features.behaviour_metrics.items():
         if metrics.raw_event_count <= 0:
             continue
 
-        weight = float(definitions.get(behaviour_key, {}).get("severity_weight", 0.0))
+        definition = definitions.get(behaviour_key)
+        weight = float(definition["severity_weight"]) if definition is not None else 0.0
         active_weight_sum += weight
         contributors.append(
             {
@@ -56,7 +57,7 @@ def evaluate_breadth_risk(features: RiskFeatures) -> dict:
     else:
         level = "low"
 
-    contributors.sort(key=lambda item: item["weight"], reverse=True)
+    contributors.sort(key=lambda item: float(item["weight"]), reverse=True)
 
     return {
         "level": level,

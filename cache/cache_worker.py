@@ -1,22 +1,16 @@
-from typing import Dict, Any, Optional, List
 import hashlib
 import json
 import os
 import re
-from datetime import date
-from datetime import datetime
-from datetime import timedelta
-from datetime import timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-
-# Per-journey summary cache (single driver summary responses).
-CACHE_FILE = Path("cache/summary_cache.json")
+from typing import Any
 
 # Collection summary cache (POST collection scope responses).
 EVENT_COLLECTION_CACHE_FILE = Path("cache/event-collection-summary.json")
 
 # Deterministic cache schema version for collection-based behaviour summaries.
-CACHE_SCHEMA_VERSION = "v1"
+CACHE_SCHEMA_VERSION = "v2"
 
 FLEET_SUMMARY_CACHE_PREFIX = "fleet_summary"
 
@@ -41,36 +35,19 @@ DRIVER_BEHAVIOUR_CACHE_DIR = Path("cache/driver_behaviour")
 SHA256_HEX_PATTERN = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
-def load_cache() -> Dict[str, Any]:
-    """Load cache from the disk if it exists."""
-    
-    if CACHE_FILE.exists():
-        with open(CACHE_FILE, "r") as f:
-            return json.load(f)
-
-    return {}
-
-
-def save_cache(cache: Dict[str, Any]):
-    """Persist cache dictionary to disk."""
-
-    CACHE_FILE.parent.mkdir(exist_ok=True)
-
-    with open(CACHE_FILE, "w") as f:
-        json.dump(cache, f, indent=2)
-
-
-def load_event_collection_cache() -> Dict[str, Any]:
+def load_event_collection_cache() -> dict[str, Any]:
     """Load event collection summary cache from the disk if it exists."""
 
     if EVENT_COLLECTION_CACHE_FILE.exists():
         with open(EVENT_COLLECTION_CACHE_FILE, "r") as f:
-            return json.load(f)
+            cache: Any = json.load(f)
+
+        return cache if isinstance(cache, dict) else {}
 
     return {}
 
 
-def save_event_collection_cache(cache: Dict[str, Any]):
+def save_event_collection_cache(cache: dict[str, Any]) -> None:
     """Persist event collection summary cache dictionary to disk."""
 
     EVENT_COLLECTION_CACHE_FILE.parent.mkdir(exist_ok=True)
@@ -79,61 +56,40 @@ def save_event_collection_cache(cache: Dict[str, Any]):
         json.dump(cache, f, indent=2)
 
 
-def get_cached_summary(cache: Dict[str, Any], journey_id: int) -> Optional[str]:
+def get_cached_summary(cache: dict[str, Any], journey_id: int) -> str | None:
     """Return a cached summary if available."""
 
     # JSON object keys are strings, so normalize integer ids before lookup.
     s_journey_id = str(journey_id)
 
-    if s_journey_id in cache:
-        return cache[s_journey_id]["summary"]
+    cache_entry = cache.get(s_journey_id)
+
+    if isinstance(cache_entry, dict):
+        summary = cache_entry.get("summary")
+
+        if isinstance(summary, str):
+            return summary
 
     return None
 
 
-def store_summary(cache: Dict[str, Any], journey_id: int, driver_name: str, summary: str):
+def store_summary(cache: dict[str, Any], journey_id: int, driver_name: str, summary: str) -> None:
     """Store a new summary in the cache."""
 
     # Keep cache key format aligned with `get_cached_summary` lookups.
     s_journey_id = str(journey_id)
 
-    cache[s_journey_id] = {
-        "driver": driver_name,
-        "summary": summary,
-        "generated_at": str(date.today())
-    }
+    cache[s_journey_id] = {"driver": driver_name, "summary": summary, "generated_at": str(date.today())}
 
 
-def get_cached_event_collection_summary(cache: Dict[str, Any], collection_scope: str) -> Optional[Dict[str, Any]]:
-    """Return a cached collection summary for the provided scope key."""
-
-    return cache.get(collection_scope)
-
-
-def store_event_collection_summary(
-    cache: Dict[str, Any],
-    collection_scope: str,
-    driver_ids: List[int],
-    summary: str,
-):
-    """Store a collection summary in cache, including generation metadata."""
-
-    cache[collection_scope] = {
-        "collection_scope": collection_scope,
-        "driver_ids": driver_ids,
-        "summary": summary,
-        "generated_at": str(date.today())
-    }
-
-
-def build_driver_behaviour_cache_key(hash_source: Dict[str, Any]) -> str:
+def build_driver_behaviour_cache_key(hash_source: dict[str, Any]) -> str:
     """Return deterministic SHA256 key for normalized behaviour summary payloads."""
 
     serialized_source = json.dumps(hash_source, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized_source.encode("utf-8")).hexdigest()
 
 
-def build_fleet_summary_cache_key(collection_scope: str, normalized_data: List[Dict[str, Any]]) -> str:
+def build_fleet_summary_cache_key(collection_scope: str, normalized_data: list[dict[str, Any]]) -> str:
     """Build deterministic fleet-summary cache key with stable prefix."""
 
     hash_source = {
@@ -156,7 +112,7 @@ def _validate_fleet_summary_cache_key(cache_key: str) -> str:
     if not cache_key.startswith(prefix):
         raise ValueError("Invalid cache_key: expected fleet_summary:{sha256}")
 
-    digest = cache_key[len(prefix):]
+    digest = cache_key[len(prefix) :]
 
     if not SHA256_HEX_PATTERN.fullmatch(digest):
         raise ValueError("Invalid cache_key digest: expected 64-char SHA256 hex")
@@ -164,7 +120,7 @@ def _validate_fleet_summary_cache_key(cache_key: str) -> str:
     return digest
 
 
-def _resolve_fleet_summary_ttl_seconds(ttl: Optional[int]) -> int:
+def _resolve_fleet_summary_ttl_seconds(ttl: int | None) -> int:
     """Return resolved fleet-summary TTL in seconds."""
 
     if ttl is None:
@@ -178,7 +134,7 @@ def _resolve_fleet_summary_ttl_seconds(ttl: Optional[int]) -> int:
     return resolved_ttl
 
 
-def _parse_iso_utc_datetime(value: Any) -> Optional[datetime]:
+def _parse_iso_utc_datetime(value: Any) -> datetime | None:
     """Parse ISO UTC timestamp string, returning None when invalid."""
 
     if not isinstance(value, str) or not value.strip():
@@ -197,7 +153,7 @@ def _parse_iso_utc_datetime(value: Any) -> Optional[datetime]:
     return parsed.astimezone(timezone.utc)
 
 
-def get_fleet_summary_cache(cache_key: str, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
+def get_fleet_summary_cache(cache_key: str, ttl: int | None = None) -> dict[str, Any] | None:
     """Return fleet summary cache entry when present and not expired."""
 
     _validate_fleet_summary_cache_key(cache_key)
@@ -220,7 +176,7 @@ def get_fleet_summary_cache(cache_key: str, ttl: Optional[int] = None) -> Option
     return cache_entry
 
 
-def set_fleet_summary_cache(cache_key: str, value: Dict[str, Any], ttl: Optional[int] = None) -> Dict[str, Any]:
+def set_fleet_summary_cache(cache_key: str, value: dict[str, Any], ttl: int | None = None) -> dict[str, Any]:
     """Persist fleet summary cache entry and return stored metadata payload."""
 
     _validate_fleet_summary_cache_key(cache_key)
@@ -247,7 +203,7 @@ def _driver_behaviour_cache_file(cache_key: str) -> Path:
     return DRIVER_BEHAVIOUR_CACHE_DIR / f"{cache_key}.json"
 
 
-def load_driver_behaviour_cache_entry(cache_key: str) -> Optional[Dict[str, Any]]:
+def load_driver_behaviour_cache_entry(cache_key: str) -> dict[str, Any] | None:
     """Load a behaviour summary cache entry by deterministic cache key."""
 
     cache_file = _driver_behaviour_cache_file(cache_key)
@@ -264,13 +220,14 @@ def load_driver_behaviour_cache_entry(cache_key: str) -> Optional[Dict[str, Any]
     if not isinstance(entry, dict):
         return None
 
+    # make sure the cache entry is valid and for the correct schema version
     if entry.get("cache_version") != CACHE_SCHEMA_VERSION:
         return None
 
     return entry
 
 
-def store_driver_behaviour_cache_entry(cache_key: str, entry: Dict[str, Any]):
+def store_driver_behaviour_cache_entry(cache_key: str, entry: dict[str, Any]) -> None:
     """Store a behaviour summary cache entry as `cache/driver_behaviour/{sha256}.json`."""
 
     DRIVER_BEHAVIOUR_CACHE_DIR.mkdir(parents=True, exist_ok=True)

@@ -74,8 +74,6 @@ Ownership rule:
   - Pydantic schemas used for typed data validation and API response contracts.
 - `cache/cache_worker.py`
   - Cache load/store helpers including deterministic hash-based filesystem cache entries.
-- `util/data_loader.py`
-  - Minimal file loader utility for JSON event input.
 - `tests/`
   - Unit/API tests for service behavior, pipeline logic, and endpoints.
 

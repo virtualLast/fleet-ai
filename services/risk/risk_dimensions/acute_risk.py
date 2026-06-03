@@ -29,7 +29,7 @@ def evaluate_acute_risk(features: RiskFeatures) -> dict:
     """
 
     score = 0.0
-    contributors = []
+    contributors: list[dict[str, str | int | float]] = []
 
     for behaviour_key, metrics in features.behaviour_metrics.items():
         peak = int(metrics.max_single_journey_events)
@@ -56,7 +56,7 @@ def evaluate_acute_risk(features: RiskFeatures) -> dict:
     else:
         level = "low"
 
-    contributors.sort(key=lambda item: item["acute_component"], reverse=True)
+    contributors.sort(key=lambda item: float(item["acute_component"]), reverse=True)
 
     return {
         "level": level,

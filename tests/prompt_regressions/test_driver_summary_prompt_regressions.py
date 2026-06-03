@@ -17,7 +17,6 @@ from tests.helpers.summary_semantic_assertions import (
     assert_tones,
 )
 
-
 GOLDEN_ROOT = Path("tests/golden_datasets")
 METADATA_LOG = Path("tests/prompt_regressions/prompt_regression_runs.jsonl")
 MAX_METADATA_LINES = 500

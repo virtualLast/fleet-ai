@@ -2,6 +2,14 @@ import pytest
 from fastapi import HTTPException
 
 from services import summary_pipeline
+from tests.helpers.summary_semantic_assertions import (
+    assert_behaviour_consistency,
+    assert_forbidden_phrases,
+    assert_required_concepts,
+    assert_required_phrases,
+    assert_summary_consistent_with_risk_profile,
+    assert_tones,
+)
 
 
 def test_normalize_collection_data_handles_id_fallback_uniqueness_and_coercion():
@@ -476,6 +484,85 @@ def test_generate_driver_behaviour_summary_generates_and_stores_on_cache_miss(mo
     assert stored["cache_key"] == result.cache_key
     assert stored["entry"]["cache_version"] == summary_pipeline.CACHE_SCHEMA_VERSION
     assert stored["entry"]["summary"] == "Generated behaviour summary"
+
+
+def test_generate_driver_behaviour_summary_regenerates_semantically_consistent_summary_after_cache_deleted(
+    monkeypatch,
+):
+    """What: Regenerate semantically aligned summaries when identical data misses cache twice.
+
+    Why: Deleted cache entries should not allow same-data AI regeneration to drift outside semantic guardrails.
+
+    How: Force two cache misses, return different but aligned AI texts, and assert both satisfy the same risk truth.
+    """
+
+    ai_payloads = []
+    stored_entries = []
+    generated_summaries = [
+        "Seatbelt use is the main concern in this limited pattern, so conclusions should remain cautious.",
+        (
+            "The same limited pattern of seatbelt use remains the primary concern, "
+            "and the assessment should stay cautious."
+        ),
+    ]
+
+    def fake_generate_driver_behaviour_aggregated_summary(aggregated_payload):
+        """Return distinct semantic-equivalent summaries while capturing deterministic AI input."""
+        ai_payloads.append(aggregated_payload)
+        return generated_summaries[len(ai_payloads) - 1]
+
+    def fake_store(cache_key, entry):
+        """Capture each cache write for repeated cache-miss assertions."""
+        stored_entries.append({"cache_key": cache_key, "entry": entry})
+
+    monkeypatch.setattr(summary_pipeline, "load_driver_behaviour_cache_entry", lambda _cache_key: None)
+    monkeypatch.setattr(
+        summary_pipeline,
+        "generate_driver_behaviour_aggregated_summary",
+        fake_generate_driver_behaviour_aggregated_summary,
+    )
+    monkeypatch.setattr(summary_pipeline, "store_driver_behaviour_cache_entry", fake_store)
+
+    data = [
+        {
+            "id": 1,
+            "entityName": "David Price",
+            "driverId": 312870,
+            "startTime": "2026-04-06T12:58:02+00:00",
+            "endTime": "2026-04-06T13:10:30+00:00",
+            "dsmEventsCount": 1,
+            "dsmSeatbeltCount": 1,
+        }
+    ]
+
+    first_result = summary_pipeline.generate_driver_behaviour_summary("scope-a", data)
+    second_result = summary_pipeline.generate_driver_behaviour_summary("scope-a", data)
+
+    assert first_result.cached is False
+    assert second_result.cached is False
+    assert first_result.cache_key == second_result.cache_key
+    assert first_result.summary != second_result.summary
+    assert len(ai_payloads) == 2
+    assert len(stored_entries) == 2
+    assert stored_entries[0]["cache_key"] == first_result.cache_key
+    assert stored_entries[1]["cache_key"] == second_result.cache_key
+    assert ai_payloads[0]["risk_profile"] == ai_payloads[1]["risk_profile"]
+    assert ai_payloads[0]["behaviour_summary"] == ai_payloads[1]["behaviour_summary"]
+
+    risk_profile = ai_payloads[0]["risk_profile"]
+    behaviour_summary = ai_payloads[0]["behaviour_summary"]
+
+    for summary in (first_result.summary, second_result.summary):
+        assert_required_phrases(summary, ["seatbelt"])
+        assert_required_concepts(summary, ["low_confidence_cautious", "single_pattern_acknowledged"])
+        assert_forbidden_phrases(summary, ["dangerous driving", "high-risk behaviour", "aggressive driving"])
+        assert_summary_consistent_with_risk_profile(summary, risk_profile)
+        assert_behaviour_consistency(
+            summary,
+            behaviour_summary,
+            ["fatigue", "distraction", "handheld_device", "smoking", "aggression"],
+        )
+        assert_tones(summary, ["cautious"], ["critical", "urgent"])
 
 
 def test_generate_driver_behaviour_summary_zero_events_skips_ai_request(monkeypatch):
